@@ -1,0 +1,50 @@
+units:
+  - id: warrior
+    name: Warrior
+    color: [200, 80, 80]
+    hp: 150
+    atk: 25
+    def: 5
+    speed: 1.2
+    range: 60
+    tags: [melee, warrior]
+
+  - id: archer
+    name: Archer
+    color: [80, 200, 80]
+    hp: 80
+    atk: 20
+    def: 2
+    speed: 1.5
+    range: 250
+    tags: [ranged, hunter]
+
+  - id: mage
+    name: Mage
+    color: [100, 100, 255]
+    hp: 60
+    atk: 35
+    def: 1
+    speed: 0.9
+    range: 200
+    tags: [ranged, magic]
+
+  - id: tank
+    name: Tank
+    color: [150, 150, 150]
+    hp: 200
+    atk: 15
+    def: 10
+    speed: 0.7
+    range: 50
+    tags: [melee, defender]
+
+  - id: rogue
+    name: Rogue
+    color: [255, 200, 50]
+    hp: 70
+    atk: 30
+    def: 2
+    speed: 1.8
+    range: 55
+    tags: [melee, assassin]
