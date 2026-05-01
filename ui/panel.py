@@ -7,7 +7,7 @@ INFO_W = 350
 def get_catalog_bounds():
     return INFO_W + 20, ARENA_H + 10, SCREEN_W - INFO_W - 40, BOTTOM_PANEL_H - 20
 
-def draw_info_section(screen, font, big_font, battle_info=None, wave=1, gold=0, state_hint=""):
+def draw_info_section(screen, font, big_font, battle_info=None, wave=1, gold=0, state_hint="", selected_data=None):
     panel_y = ARENA_H
     
     wave_text = big_font.render(f"Wave: {wave}", True, COLORS["text"])
@@ -15,6 +15,17 @@ def draw_info_section(screen, font, big_font, battle_info=None, wave=1, gold=0, 
     
     gold_text = font.render(f"Gold: {gold}", True, COLORS["accent"])
     screen.blit(gold_text, (140, panel_y + 20))
+    
+    if selected_data and selected_data.get("id") == "bot_wheel":
+        try:
+            from assets.units.bot_animation import BotAnimationController
+            preview_anim = BotAnimationController("idle")
+            preview_frame = preview_anim.current_frame
+            if preview_frame:
+                preview_frame = pygame.transform.scale(preview_frame, (50, 50))
+                screen.blit(preview_frame, (280, panel_y + 20))
+        except:
+            pass
     
     if state_hint:
         state_text = big_font.render(state_hint, True, COLORS["accent"])
@@ -43,6 +54,13 @@ def draw_catalog_section(screen, units_db, scroll, selected_data):
     
     font_small = pygame.font.SysFont("consolas", 11, bold=True)
     
+    try:
+        from assets.units.bot_animation import BotAnimationController
+        has_bot_anim = True
+        bot_anim = BotAnimationController("move")
+    except:
+        has_bot_anim = False
+    
     for i, (uid, udata) in enumerate(units_db.items()):
         x = cat_x + 10 + i * 70 - scroll
         if x < cat_x or x > cat_x + cat_w:
@@ -51,14 +69,20 @@ def draw_catalog_section(screen, units_db, scroll, selected_data):
         rect = pygame.Rect(x, cat_y, 60, 60)
         
         is_selected = selected_data and selected_data["id"] == uid
-        color = udata.get("color", [100, 100, 100])
         
         if is_selected:
             pygame.draw.rect(screen, COLORS["accent"], rect, 3)
         else:
             pygame.draw.rect(screen, (40, 40, 60), rect, 2)
         
-        pygame.draw.rect(screen, color, rect)
+        if uid == "bot_wheel" and has_bot_anim:
+            frame = bot_anim.current_frame
+            if frame:
+                frame = pygame.transform.scale(frame, (50, 50))
+                screen.blit(frame, (x + 5, cat_y + 5))
+        else:
+            color = udata.get("color", [100, 100, 100])
+            pygame.draw.rect(screen, color, rect)
         
         text = font_small.render(uid[:6], True, (255, 255, 255))
         screen.blit(text, (x + 2, cat_y + 62))

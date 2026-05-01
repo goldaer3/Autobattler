@@ -48,28 +48,27 @@ def draw_arena(screen):
     pygame.draw.line(screen, COLORS["accent"], (mid_x, 0), (mid_x, ARENA_H), 3)
 
 def draw_unit(screen, unit, font):
-    if not unit.alive:
-        return
-    
-    sx, sy = unit.x, unit.y
-    
-    pygame.draw.ellipse(screen, (0, 0, 0, 60), (sx - 25, sy + 15, 50, 10))
+    sx, sy = int(unit.x), int(unit.y)
+    w, h = 0, 0
     
     if unit.sprite:
         w, h = unit.sprite.get_size()
         screen.blit(unit.sprite, (sx - w // 2, sy - h // 2))
     else:
         size = GRID_SZ - 20
-        unit_color = getattr(unit, 'color', team_color)
+        unit_color = getattr(unit, 'color', (200, 200, 200))
+        team_color = COLORS["team_a_indicator"] if unit.team == "A" else COLORS["team_b_indicator"]
         pygame.draw.circle(screen, unit_color, (sx, sy), size // 2)
         pygame.draw.circle(screen, COLORS["text"], (sx, sy), size // 2, 2)
     
     hp_w, hp_h = 40, 6
     hp_x, hp_y = sx - hp_w // 2, sy - GRID_SZ // 2 - 12
     
+    hp_color = COLORS["hp_bar_fill"] if unit.team == "A" else (80, 150, 255)
+    
     pygame.draw.rect(screen, COLORS["hp_bar_bg"], (hp_x, hp_y, hp_w, hp_h))
     hp_ratio = unit.current_hp / unit.hp if unit.hp > 0 else 0
-    pygame.draw.rect(screen, COLORS["hp_bar_fill"], (hp_x, hp_y, int(hp_w * hp_ratio), hp_h))
+    pygame.draw.rect(screen, hp_color, (hp_x, hp_y, int(hp_w * hp_ratio), hp_h))
     
     team_color = COLORS["team_a_indicator"] if unit.team == "A" else COLORS["team_b_indicator"]
     pygame.draw.ellipse(screen, (*team_color, 180), (sx - 4, sy + GRID_SZ // 2 + 5, 8, 8))
@@ -88,7 +87,7 @@ def draw_bottom_panel(screen, font, big_font, battle_info=None, wave=1, gold=0, 
     from ui.panel import INFO_W
     pygame.draw.line(screen, COLORS["accent"], (INFO_W, panel_y), (INFO_W, panel_y + panel_h), 2)
     
-    draw_info_section(screen, font, big_font, battle_info, wave, gold, state_hint)
+    draw_info_section(screen, font, big_font, battle_info, wave, gold, state_hint, selected_data)
     draw_catalog_section(screen, units_db, catalog_scroll, selected_data)
 
 def draw_minimap(screen, units):
@@ -147,6 +146,19 @@ def draw_catalog(screen, units_db, scroll, selected_data):
         screen.blit(text, (x + 2, start_y + unit_h - 18))
 
 def draw_placement_preview(screen, unit_data, x, y, color, team="A"):
+    try:
+        from assets.units.bot_animation import BotAnimationController
+        if unit_data.get("id") == "bot_wheel":
+            anim = BotAnimationController("idle")
+            frame = anim.current_frame
+            if frame:
+                frame = frame.copy()
+                frame.set_alpha(150)
+                screen.blit(frame, (x - frame.get_width() // 2, y - frame.get_height() // 2))
+                return
+    except:
+        pass
+    
     size = GRID_SZ - 20
     preview = pygame.Surface((size, size), pygame.SRCALPHA)
     

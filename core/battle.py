@@ -66,6 +66,9 @@ class BattleEngine:
             if not unit.alive:
                 continue
             
+            if hasattr(unit, '_is_moving'):
+                unit._is_moving = False
+            
             target = self.find_nearest_enemy(unit)
             if not target:
                 continue
@@ -98,6 +101,13 @@ class BattleEngine:
                     speed = unit.speed * 100 * dt
                     unit.x += (dx / length) * speed
                     unit.y += (dy / length) * speed
+                    
+                    if hasattr(unit, '_is_moving'):
+                        unit._is_moving = True
+                
+                if "dash_ability" in unit.tags:
+                    if hasattr(unit, 'try_dash'):
+                        unit.try_dash(target, self)
             
             elif unit.attack_state == "attacking":
                 unit.attack_timer -= dt
@@ -116,7 +126,15 @@ class BattleEngine:
                 else:
                     unit.attack_state = "idle"
             
-            unit.update_animation(dt)
+            if hasattr(unit, 'update_dash'):
+                unit.update_dash(dt)
+            if hasattr(unit, 'dash_cooldown') and unit.dash_cooldown > 0:
+                unit.dash_cooldown -= dt
+            
+            if hasattr(unit, 'update_animation'):
+                unit.update_animation(dt, target)
+            else:
+                unit.update_animation(dt)
 
         a_alive = any(u.alive for u in self.team_a)
         b_alive = any(u.alive for u in self.team_b)

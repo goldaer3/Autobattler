@@ -92,20 +92,14 @@ def main():
                         selected_unit_data = units_db[hit_uid].copy()
                     elif my < ARENA_H:
                         if state == GameState.DEPLOY_A and selected_unit_data:
-                            grid_x = (mx // GRID_SZ) * GRID_SZ + GRID_SZ // 2
-                            grid_y = (my // GRID_SZ) * GRID_SZ + GRID_SZ // 2
-                            if grid_x < GRID_SZ * (GRID_COLS // 2 - 1):
-                                unit = create_unit_from_data(selected_unit_data, "A", grid_x, grid_y)
+                            if mx < GRID_SZ * (GRID_COLS // 2 - 1):
+                                unit = create_unit_from_data(selected_unit_data, "A", mx, my)
                                 team_a.append(unit)
-                                selected_unit_data = None
                         
                         elif state == GameState.DEPLOY_B and selected_unit_data:
-                            grid_x = (mx // GRID_SZ) * GRID_SZ + GRID_SZ // 2
-                            grid_y = (my // GRID_SZ) * GRID_SZ + GRID_SZ // 2
-                            if grid_x > GRID_SZ * (GRID_COLS // 2 + 1):
-                                unit = create_unit_from_data(selected_unit_data, "B", grid_x, grid_y)
+                            if mx > GRID_SZ * (GRID_COLS // 2 + 1):
+                                unit = create_unit_from_data(selected_unit_data, "B", mx, my)
                                 team_b.append(unit)
-                                selected_unit_data = None
 
         if state == GameState.BATTLE and battle_engine:
             if not battle_engine.step(dt):

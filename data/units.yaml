@@ -48,3 +48,13 @@ units:
     speed: 1.8
     range: 55
     tags: [melee, assassin]
+
+  - id: bot_wheel
+    name: Bot Wheel
+    color: [255, 100, 50]
+    hp: 100
+    atk: 22
+    def: 3
+    speed: 1.2
+    range: 150
+    tags: [ranged, dash_ability]
