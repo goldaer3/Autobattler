@@ -15,20 +15,24 @@ def init():
     big_font = pygame.font.SysFont("consolas", 28, bold=True)
     return screen, clock, font, big_font
 
-def draw_arena(screen):
+def draw_arena(screen, arena_h=None):
+    if arena_h is None:
+        arena_h = ARENA_H
     screen.fill(COLORS["bg"])
-    for y in range(ARENA_H):
-        ratio = y / ARENA_H
+    for y in range(arena_h):
+        ratio = y / arena_h
         r = int(20 * (1 - ratio) + 10 * ratio)
         g = int(20 * (1 - ratio) + 15 * ratio)
         b = int(50 * (1 - ratio) + 25 * ratio)
         pygame.draw.line(screen, (r, g, b), (0, y), (ARENA_W, y))
-    
+
+    pygame.draw.rect(screen, (200, 200, 220), (0, 0, ARENA_W, arena_h), 3)
+
     for col in range(GRID_COLS + 1):
         x = col * GRID_SZ
         color = (50, 50, 80, 80) if col != GRID_COLS // 2 else (100, 100, 150, 150)
-        pygame.draw.line(screen, color, (x, 0), (x, ARENA_H))
-    
+        pygame.draw.line(screen, color, (x, 0), (x, arena_h))
+
     for row in range(GRID_ROWS + 1):
         y = row * GRID_SZ
         pygame.draw.line(screen, (50, 50, 80, 80), (0, y), (ARENA_W, y))
@@ -148,32 +152,46 @@ def draw_catalog(screen, units_db, scroll, selected_data):
 def draw_placement_preview(screen, unit_data, x, y, color, team="A"):
     try:
         from assets.units.bot_animation import BotAnimationController
-        if unit_data.get("id") == "bot_wheel":
-            anim = BotAnimationController("idle")
-            frame = anim.current_frame
-            if frame:
-                frame = frame.copy()
-                frame.set_alpha(150)
-                screen.blit(frame, (x - frame.get_width() // 2, y - frame.get_height() // 2))
-                return
-    except:
+        unit_type = unit_data.get("id", "bot_wheel")
+        anim = BotAnimationController("idle", unit_type=unit_type)
+        frame = anim.current_frame
+        if frame:
+            frame = frame.copy()
+            frame.set_alpha(150)
+            if team == "B":
+                frame = pygame.transform.flip(frame, True, False)
+            screen.blit(frame, (x - frame.get_width() // 2, y - frame.get_height() // 2))
+            return
+    except Exception as e:
         pass
-    
+
     size = GRID_SZ - 20
     preview = pygame.Surface((size, size), pygame.SRCALPHA)
-    
+
     team_color = COLORS["team_a_indicator"] if team == "A" else COLORS["team_b_indicator"]
     pygame.draw.circle(preview, (*team_color, 128), (size // 2, size // 2), size // 2)
-    
+
     if len(color) == 4:
         pygame.draw.circle(preview, color, (size // 2, size // 2), size // 2, 2)
     else:
         pygame.draw.circle(preview, (*color, 200), (size // 2, size // 2), size // 2, 2)
-    
+
+    if team == "B":
+        preview = pygame.transform.flip(preview, True, False)
+
     screen.blit(preview, (x - size // 2, y - size // 2))
 
 def draw_projectiles(screen, projectiles):
     for p in projectiles:
-        color = p.color if len(p.color) == 3 else p.color[:3]
-        pygame.draw.circle(screen, color, (int(p.x), int(p.y)), 8)
-        pygame.draw.circle(screen, (255, 255, 255), (int(p.x), int(p.y)), 8, 2)
+        w, h = 10, 4
+        angle = 0
+        if p.dir_x != 0 or p.dir_y != 0:
+            import math
+            angle = math.degrees(math.atan2(-p.dir_y, p.dir_x))
+        
+        surf = pygame.Surface((w, h), pygame.SRCALPHA)
+        pygame.draw.rect(surf, (180, 180, 180), (0, 0, w, h))
+        
+        rotated = pygame.transform.rotate(surf, angle)
+        rect = rotated.get_rect(center=(int(p.x), int(p.y)))
+        screen.blit(rotated, rect.topleft)
