@@ -43,6 +43,7 @@ def _get_knight_anims():
             "attack2": SpritesheetAnimator(knight_dir / "__Attack2.gif", fps=12, frame_width=120, frame_height=80, target_size=0, orientation="horizontal"),
             "hurt": SpritesheetAnimator(knight_dir / "__Hit.gif", fps=15, frame_width=120, frame_height=80, target_size=0, orientation="horizontal"),
             "death": SpritesheetAnimator(knight_dir / "__Death.gif", fps=6, frame_width=120, frame_height=80, target_size=0, orientation="horizontal"),
+            "roll": SpritesheetAnimator(knight_dir / "__Roll.gif", fps=15, frame_width=120, frame_height=80, target_size=0, orientation="horizontal"),
         }
         for anim in _knight_anims.values():
             anim._cache.clear()

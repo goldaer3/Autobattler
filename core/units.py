@@ -304,14 +304,23 @@ class AnimatedUnit(Unit):
 
 
 class Knight(AnimatedUnit):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._roll_cooldown = 0.0
+        self._roll_cd = 2.0
+        self._roll_distance = 100
+        self._roll_target_x = 0.0
+        self._roll_target_y = 0.0
+
     def load_assets(self):
         from assets.units.bot_animation import BotAnimationController
         self._anim = BotAnimationController("idle", unit_type="knight")
 
     def _get_current_animation(self) -> str:
-        priority_order = ["death", "attacking", "hurt", "moving"]
+        priority_order = ["death", "rolling", "attacking", "hurt", "moving"]
         anim_map = {
             "death": "death",
+            "rolling": "roll",
             "attacking": "attack2",
             "hurt": "hurt",
             "moving": "move",
@@ -325,11 +334,69 @@ class Knight(AnimatedUnit):
         status_loop = self.status & {"idle", "moving", "attacking"}
         return bool(status_loop)
 
+    def _try_roll(self, enemy_x, enemy_y):
+        if self._roll_cooldown > 0:
+            return False
+        if self.has_status("rolling") or self.has_status("attacking"):
+            return False
+        if not self.alive:
+            return False
+        
+        dx = enemy_x - self.x
+        dy = enemy_y - self.y
+        dist = math.sqrt(dx * dx + dy * dy)
+        if dist > 0:
+            self._roll_target_x = self.x - (dx / dist) * self._roll_distance
+            self._roll_target_y = self.y - (dy / dist) * self._roll_distance
+        
+        self.add_status("rolling")
+        self.set_status_with_timer("rolling", 0.3)
+        self._roll_cooldown = self._roll_cd
+        return True
+
+    def _update_roll(self, dt):
+        if not self.has_status("rolling"):
+            return
+        
+        dx = self._roll_target_x - self.x
+        dy = self._roll_target_y - self.y
+        dist = math.sqrt(dx * dx + dy * dy)
+        if dist > 5:
+            speed = self._roll_distance / 0.3
+            self.x += (dx / dist) * speed * dt
+            self.y += (dy / dist) * speed * dt
+        else:
+            self.remove_status("rolling")
+
+    def _check_incoming_projectiles(self, engine):
+        for proj in getattr(engine, 'projectiles', []):
+            if proj.team == self.team:
+                continue
+            dx = proj.x - self.x
+            dy = proj.y - self.y
+            dist = math.sqrt(dx * dx + dy * dy)
+            if dist < 80 and dist > 0:
+                return True
+        return False
+
     def update(self, dt, engine, target):
         self.update_status_timers(dt)
 
         is_dead = not self.alive
         effective_target = None if is_dead else target
+
+        if not is_dead:
+            if self._roll_cooldown > 0:
+                self._roll_cooldown -= dt
+            
+            self._update_roll(dt)
+            
+            if not self.has_status("rolling"):
+                if self._check_incoming_projectiles(engine):
+                    for proj in getattr(engine, 'projectiles', []):
+                        if proj.team != self.team:
+                            self._try_roll(proj.x, proj.y)
+                            break
 
         if not hasattr(self, 'ai') or not self.ai:
             pass
