@@ -29,7 +29,7 @@ units:
     name: Skeleton
     color: [200, 200, 200]
     hp: 120
-    atk: 60
+    atk: 10
     def: 2
     speed: 0.8
     range: 45
@@ -48,5 +48,5 @@ units:
     tags: [ranged, magic]
     ai_level: 3
     modules: [spell1]
-    attack_cooldown: 5.0
-    attack_duration: 1.0
+    attack_cooldown: 3.0
+    attack_duration: 0.45

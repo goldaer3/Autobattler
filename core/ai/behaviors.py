@@ -136,6 +136,14 @@ class AI2(AIBehavior):
     def __init__(self, unit, engine):
         super().__init__(unit, engine)
         self._reload_timer = 0.0
+        self._attack_timer = 0.0
+        self._current_target = None
+
+    def _fire_projectile(self):
+        if self._current_target and self._current_target.alive:
+            self.engine.create_projectile(self.unit, self._current_target)
+        self._current_target = None
+        self.unit.remove_status("attacking")
 
     def _get_ranged_teammates(self):
         teammates = []
@@ -234,7 +242,7 @@ class AI2(AIBehavior):
             super().update(dt, target)
             return
 
-        if self.unit.has_status("attacking") or self.unit.has_status("dashing"):
+        if self.unit.has_status("dashing"):
             super().update(dt, target)
             return
 
@@ -242,6 +250,7 @@ class AI2(AIBehavior):
         attack_range = self.unit.attack_range
         retreat_range = attack_range * 0.7
 
+        # Update reload timer
         if self._reload_timer > 0:
             self._reload_timer -= dt
             if self._reload_timer <= 0:
@@ -254,8 +263,8 @@ class AI2(AIBehavior):
         dy = target.y - self.unit.y
         length = math.sqrt(dx * dx + dy * dy) or 1
 
+        # Flee if too close and nearest to enemy
         should_flee = distance < retreat_range and self._is_nearest_to_enemy(target)
-
         if should_flee:
             flee_dx = -(dx / length)
             flee_dy = -(dy / length)
@@ -273,14 +282,42 @@ class AI2(AIBehavior):
                     speed = self.unit.speed * 80 * dt
                     self.unit.x += safe_dx * speed
                     self.unit.y += safe_dy * speed
+                    self.unit._last_move_dx = safe_dx  # Сохраняем направление движения
                     self.unit.add_status("moving")
+            return
+
+        # Attack if in range and reload timer is ready
+        if distance <= attack_range and self._reload_timer <= 0:
+            self.unit.add_status("attacking")
+            self.unit.set_status_with_timer("attacking", getattr(self.unit, 'attack_duration', 0.5))
+            # Store target and fire projectile immediately
+            self.unit._attack_target = target
+            self.unit._battle_engine = self.engine
+            if hasattr(self.unit, '_fire_projectile'):
+                self.unit._fire_projectile()
+            self._reload_timer = getattr(self.unit, 'attack_cooldown', 1.0)
+            return
+
+        # Move toward target if out of range
+        if distance > attack_range:
+            speed = self.unit.speed * 80 * dt
+            self.unit.x += (dx / length) * speed
+            self.unit.y += (dy / length) * speed
+            self.unit._last_move_dx = dx  # Сохраняем направление движения
+            self.unit.add_status("moving")
+
+        # Move toward target if out of range
+        if distance > attack_range:
+            speed = self.unit.speed * 80 * dt
+            self.unit.x += (dx / length) * speed
+            self.unit.y += (dy / length) * speed
+            self.unit.add_status("moving")
 
 
 class AI3(AIBehavior):
     def __init__(self, unit, engine):
         super().__init__(unit, engine)
-        self._reload_timer = 0.0
-        self._attack_timer = 0.0
+        self._attack_cooldown = 0.0
 
     def _get_module(self, module_class):
         for mod in self.modules:
@@ -289,10 +326,7 @@ class AI3(AIBehavior):
         return None
 
     def update(self, dt, target):
-        print(f"[AI3] {self.unit.name}: status={self.unit.status}, reload={self._reload_timer:.2f}, attack_timer={self._attack_timer:.2f}, attack_type={getattr(self.unit, '_attack_type', 'basic')}")
-        
         if not target or not target.alive:
-            print(f"[AI3] no target")
             return
 
         if self.unit.has_status("stun"):
@@ -305,28 +339,14 @@ class AI3(AIBehavior):
             return
 
         if self.unit.has_status("attacking") or self.unit.has_status("dashing"):
-            print(f"[AI3] busy, running modules")
-            for module in self.modules:
-                module.update(dt)
             super().update(dt, target)
             return
 
-        for module in self.modules:
-            module.update(dt)
-
-        if self._reload_timer > 0:
-            self._reload_timer -= dt
-            if self._reload_timer <= 0:
-                self._reload_timer = 0.0
-                self.unit._attack_type = "basic"
-
-        if self._attack_timer > 0:
-            self._attack_timer -= dt
-            if self._attack_timer <= 0:
-                self._attack_timer = 0.0
-                print(f"[AI3] attack timer ended, firing projectile!")
-                if hasattr(self.unit, '_fire_projectile'):
-                    self.unit._fire_projectile(self.engine)
+        # Update attack cooldown
+        if self._attack_cooldown > 0:
+            self._attack_cooldown -= dt
+            if self._attack_cooldown <= 0:
+                self._attack_cooldown = 0.0
                 self.unit._attack_type = "basic"
 
         spell_mod = None
@@ -337,62 +357,65 @@ class AI3(AIBehavior):
 
         distance = self.engine.get_distance(self.unit, target)
         attack_range = self.unit.attack_range
-        
-        print(f"[AI3] distance={distance:.0f}, range={attack_range}, reload={self._reload_timer:.2f}, attack_timer={self._attack_timer:.2f}, spell_cd={spell_mod.spell_cooldown if spell_mod else 'N/A'}")
 
         # Priority 1: Use spell if ready
         if spell_mod and spell_mod.spell_cooldown <= 0:
-            print(f"[AI3] spell ready, using spell")
             if spell_mod.try_spell():
-                print(f"[AI3] SPELL CAST!")
                 self.unit.add_status("attacking")
-                self.unit.set_status_with_timer("attacking", 1.0)
+                self.unit.set_status_with_timer("attacking", 0.45)
                 self.unit._attack_type = "spell"
-                self._reload_timer = spell_mod.spell_cd
+                self.unit._attack_target = target
+                # Не меняем _attack_cooldown, чтобы атака могла произойти после спелла
+                super().update(dt, target)
                 return
 
-        # Priority 2: Use attack if spell in cooldown
-        spell_ready = spell_mod and spell_mod.spell_cooldown > 0
-        attack_ready = self._reload_timer <= 0 and self._attack_timer <= 0
-        
-        if spell_ready and attack_ready and distance <= attack_range:
-            print(f"[AI3] ATTACK! Adding attacking status")
+        # Priority 2: Use attack if ready (spell on cooldown or not available)
+        attack_ready = self._attack_cooldown <= 0 and distance <= attack_range
+
+        if attack_ready:
             self.unit.add_status("attacking")
             self.unit.set_status_with_timer("attacking", getattr(self.unit, 'attack_duration', 0.5))
             self.unit._attack_type = "basic"
-            self._reload_timer = getattr(self.unit, 'attack_cooldown', 5.0)
-            self._attack_timer = getattr(self.unit, 'attack_duration', 0.5)
+            self.unit._attack_target = target
+            # При атаке разворачиваемся к цели (приоритет)
+            self.unit._facing_right = target.x > self.unit.x
+            self._attack_cooldown = getattr(self.unit, 'attack_cooldown', 5.0)
+            super().update(dt, target)
             return
 
         # Priority 3: Move to far edge if both spell and attack in cooldown
-        if spell_ready and attack_ready:
+        spell_on_cd = spell_mod and spell_mod.spell_cooldown > 0
+        if spell_on_cd and self._attack_cooldown > 0:
             margin = 50
-            if self.unit.x < margin or self.unit.x > ARENA_W - margin or self.unit.y < margin or self.unit.y > BATTLE_ARENA_H - margin:
-                print(f"[AI3] at edge, staying idle")
+            # Маг бежит в свой край по X: команда A - левый край, команда B - правый край
+            my_far_x = 50 if self.unit.team == "A" else ARENA_W - 50
+
+            if abs(self.unit.x - my_far_x) < margin:
                 self.unit.remove_status("moving")
             else:
-                print(f"[AI3] both on cooldown, moving to far edge")
-                far_x = 50 if target.x > ARENA_W / 2 else ARENA_W - 50
-                far_y = 50 if target.y > BATTLE_ARENA_H / 2 else BATTLE_ARENA_H - 50
-                
-                dx = far_x - self.unit.x
-                dy = far_y - self.unit.y
-                length = math.sqrt(dx * dx + dy * dy) or 1
+                dx = my_far_x - self.unit.x
+                length = abs(dx) or 1
                 speed = self.unit.speed * 80 * dt
                 self.unit.x += (dx / length) * speed
-                self.unit.y += (dy / length) * speed
+                # КОСТЫЛЬ: маг должен быть лицом к стене
+                # Команда A (левая стена): лицом влево -> _facing_right = True (без flip)
+                # Команда B (правая стена): лицом вправо -> _facing_right = False (нужен flip)
+                if self.unit.team == "A":
+                    self.unit._facing_right = True   # Лицом влево (без flip)
+                else:
+                    self.unit._facing_right = False  # Лицом вправо (flip)
                 self.unit.add_status("moving")
             return
 
         # If in attack range, attack; otherwise move toward target
         if distance > attack_range:
-            print(f"[AI3] out of range, moving toward target")
             dx = target.x - self.unit.x
             dy = target.y - self.unit.y
             length = math.sqrt(dx * dx + dy * dy) or 1
             speed = self.unit.speed * 80 * dt
             self.unit.x += (dx / length) * speed
             self.unit.y += (dy / length) * speed
+            self.unit._last_move_dx = dx  # Сохраняем направление движения
             self.unit.add_status("moving")
 
         super().update(dt, target)

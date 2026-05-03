@@ -33,6 +33,7 @@ class RollModule(AIModule):
             speed = self.roll_speed * dt
             self.unit.x += (dx / dist) * speed
             self.unit.y += (dy / dist) * speed
+            self.unit._last_move_dx = dx  # Сохраняем направление движения
         else:
             self.unit.remove_status("rolling")
 
@@ -117,6 +118,7 @@ class DashModule(AIModule):
             speed = self.dash_speed * dt
             self.unit.x += (dx / dist) * speed
             self.unit.y += (dy / dist) * speed
+            self.unit._last_move_dx = dx  # Сохраняем направление движения
         else:
             self.unit.remove_status("dashing")
 
@@ -145,29 +147,14 @@ class DashModule(AIModule):
 
 
 class Spell1Module(AIModule):
-    def __init__(self, unit, engine, spell_cd=10.0):
+    def __init__(self, unit, engine, spell_cd=8.0):
         super().__init__(unit, engine)
         self.spell_cd = spell_cd
         self.spell_cooldown = 0.0
-        self.pending_teleport_target = None
 
     def update(self, dt):
-        print(f"[SPELL] update: cooldown={self.spell_cooldown:.2f}, pending={self.pending_teleport_target}")
         if self.spell_cooldown > 0:
             self.spell_cooldown -= dt
-
-        if self.pending_teleport_target:
-            print(f"[SPELL] pending_teleport_target exists, has_attacking={self.unit.has_status('attacking')}")
-            if not self.unit.has_status("attacking"):
-                print(f"[SPELL] EXECUTING TELEPORT on {self.pending_teleport_target.name}")
-                target = self.pending_teleport_target
-                far_x = self.engine.arena_w - 50 if self.unit.x < self.engine.arena_w / 2 else 50
-                far_y = self.engine.arena_h - 50 if self.unit.y < self.engine.arena_h / 2 else 50
-
-                target.x = far_x
-                target.y = far_y
-                self.engine.logs.append(f"{self.unit.name} teleported {target.name} to the void!")
-                self.pending_teleport_target = None
 
     def try_spell(self):
         if self.spell_cooldown > 0:
@@ -182,7 +169,15 @@ class Spell1Module(AIModule):
             return False
 
         target = min(enemies, key=lambda e: self.engine.get_distance(self.unit, e))
-        self.pending_teleport_target = target
+
+        # Телепортируем врага сразу
+        far_x = self.engine.arena_w - 50 if self.unit.x < self.engine.arena_w / 2 else 50
+        far_y = self.engine.arena_h - 50 if self.unit.y < self.engine.arena_h / 2 else 50
+
+        target.x = far_x
+        target.y = far_y
+        self.engine.logs.append(f"{self.unit.name} teleported {target.name} to the void!")
+
         self.spell_cooldown = self.spell_cd
         return True
 

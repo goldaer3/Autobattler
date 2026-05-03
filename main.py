@@ -8,7 +8,6 @@ from core.battle import BattleEngine
 from ui.render import init, draw_arena, draw_unit, draw_minimap, draw_placement_preview, draw_bottom_panel, draw_projectiles
 from ui.panel import hit_test_catalog
 from enum import Enum, auto
-from tools.animation_debug import AnimationDebugTool
 
 class GameState(Enum):
     DEPLOY = auto()

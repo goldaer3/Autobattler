@@ -251,6 +251,8 @@ class AnimatedUnit(Unit):
         super().__init__(**kwargs)
         self._anim = None
         self._facing_right = kwargs.get('team', 'A') == "A"
+        self._prev_x = kwargs.get('x', 0.0)
+        self._last_move_dx = 0.0
 
     def load_assets(self):
         raise NotImplementedError
@@ -279,8 +281,8 @@ class AnimatedUnit(Unit):
 
         frame = self._anim.current_frame
 
-        if target and hasattr(target, 'x') and self.alive:
-            self._facing_right = target.x > self.x
+        # Use existing _facing_right value (set by AI or initialization)
+        # No automatic rotation based on movement or target
 
         if not self._facing_right and frame:
             frame = pygame.transform.flip(frame, True, False)
@@ -290,6 +292,11 @@ class AnimatedUnit(Unit):
     def _update_anim_state(self, dt, target):
         is_dead = not self.alive
         effective_target = None if is_dead else target
+
+        # Update movement direction
+        if self.has_status("moving"):
+            self._last_move_dx = self.x - self._prev_x
+        self._prev_x = self.x
 
         anim_name = self._get_current_animation()
         
@@ -317,7 +324,7 @@ class Knight(AnimatedUnit):
         self._special_attack_cooldown = 0.0
         self._special_attack_cd = 3.0
         self._special_attack_duration = 0.33
-        self.sprite_scale = 2.7
+        self.sprite_scale = 2.8
 
     def load_assets(self):
         from assets.units.bot_animation import BotAnimationController
@@ -358,7 +365,8 @@ class Knight(AnimatedUnit):
         self._anim.update(dt)
         frame = self._anim.current_frame
 
-        if target and hasattr(target, 'x') and self.alive:
+        # Only face target when attacking
+        if self.has_status("attacking") and target and hasattr(target, 'x') and self.alive:
             self._facing_right = target.x > self.x
 
         if not self._facing_right and frame:
@@ -451,7 +459,7 @@ class BotWheel(AnimatedUnit, RangedUnit):
         self._dash_target_y = 0.0
         self._attack_target = None
         self._reload_timer: float = 0.0
-        self.sprite_scale = 2.0
+        self.sprite_scale = 2.3
 
     def load_assets(self):
         from assets.units.bot_animation import BotAnimationController
@@ -543,15 +551,13 @@ class BotWheel(AnimatedUnit, RangedUnit):
         self._anim.update(dt)
         frame = self._anim.current_frame
 
-        if target and hasattr(target, 'x') and self.alive:
+        # Priority: attacking (face target) > use existing _facing_right
+        if self.has_status("attacking") and target and hasattr(target, 'x') and self.alive:
             self._facing_right = target.x > self.x
+        # No automatic rotation for movement
 
         if not self._facing_right and frame:
             frame = pygame.transform.flip(frame, True, False)
-
-        if frame and hasattr(self, 'sprite_scale') and self.sprite_scale != 1.0:
-            w, h = frame.get_size()
-            frame = pygame.transform.scale(frame, (int(w * self.sprite_scale), int(h * self.sprite_scale)))
 
         self.sprite = frame
 
@@ -562,9 +568,8 @@ class BotWheel(AnimatedUnit, RangedUnit):
         is_dead = not self.alive
         effective_target = None if is_dead else target
 
-        if not is_dead and not hasattr(self, 'ai') or not self.ai:
-            self._update_dash(dt)
-
+        # Always check for attack completion, regardless of AI
+        if not is_dead:
             was_attacking = getattr(self, '_was_attacking', False)
             is_attacking = self.has_status("attacking")
             self._was_attacking = is_attacking
@@ -572,6 +577,10 @@ class BotWheel(AnimatedUnit, RangedUnit):
             if was_attacking and not is_attacking:
                 self._fire_projectile()
                 self._reload_timer = self.attack_cooldown
+
+        # Dash and reload logic only if unit has no AI
+        if not is_dead and (not hasattr(self, 'ai') or not self.ai):
+            self._update_dash(dt)
 
             if self._reload_timer > 0:
                 self._reload_timer -= dt
@@ -593,7 +602,7 @@ class Skeleton(Unit):
         super().__init__(**kwargs)
         self._anim = None
         self._facing_right = kwargs.get('team', 'A') == "A"
-        self.sprite_scale = 2.5
+        self.sprite_scale = 2.3
 
     def load_assets(self):
         from assets.units.bot_animation import BotAnimationController
@@ -629,10 +638,10 @@ class Skeleton(Unit):
             target = None
 
         self._anim.update(dt)
-
         frame = self._anim.current_frame
 
-        if target and hasattr(target, 'x') and self.alive:
+        # Only face target when attacking
+        if self.has_status("attacking") and target and hasattr(target, 'x') and self.alive:
             self._facing_right = target.x > self.x
 
         if not self._facing_right and frame:
@@ -676,6 +685,7 @@ class Wizard(AnimatedUnit, RangedUnit):
         self._attack_target = None
         self._spell1_cooldown = 0.0
         self._spell1_cd = 10.0
+        self.sprite_scale = 2.4
 
     def load_assets(self):
         from assets.units.bot_animation import BotAnimationController
@@ -726,8 +736,6 @@ class Wizard(AnimatedUnit, RangedUnit):
         attack_type = getattr(self, '_attack_type', 'basic')
         anim_for_attacking = "spell1" if attack_type == "spell" else "attack"
 
-        print(f"[WIZARD ANIM] _attack_type={attack_type}, anim_for_attacking={anim_for_attacking}, status={self.status}")
-
         anim_map = {
             "death": "death",
             "stun": "hurt",
@@ -771,10 +779,15 @@ class Wizard(AnimatedUnit, RangedUnit):
         effective_target = None if is_dead else target
 
         if not is_dead:
-            if self._spell1_cooldown > 0:
-                self._spell1_cooldown -= dt
-                if self._spell1_cooldown < 0:
-                    self._spell1_cooldown = 0.0
+            # Check for attack completion
+            was_attacking = getattr(self, '_was_attacking', False)
+            is_attacking = self.has_status("attacking")
+            self._was_attacking = is_attacking
+
+            if was_attacking and not is_attacking:
+                attack_type = getattr(self, '_attack_type', 'basic')
+                if attack_type == 'basic':
+                    self._fire_projectile(engine)
 
         self._update_anim_state(dt, effective_target)
 
@@ -799,6 +812,8 @@ def create_unit_from_data_v2(data, team, x, y, engine=None):
         def_stat=float(data.get("def", 0)),
         speed=float(data.get("speed", 1.0)),
         attack_range=float(data.get("range", 0)),
+        attack_cooldown=float(data.get("attack_cooldown", 0.5)),
+        attack_duration=float(data.get("attack_duration", 0.5)),
         tags=data.get("tags", []),
         team=team,
         x=x,
@@ -807,17 +822,21 @@ def create_unit_from_data_v2(data, team, x, y, engine=None):
 
     ai_level = data.get("ai_level")
     if ai_level and engine:
-        from core.ai.behaviors import AI1, AI2
+        from core.ai.behaviors import AI1, AI2, AI3
         if ai_level == 1:
             unit.ai = AI1(unit, engine)
         elif ai_level == 2:
             unit.ai = AI2(unit, engine)
+        elif ai_level == 3:
+            unit.ai = AI3(unit, engine)
 
         modules = data.get("modules", [])
-        from core.ai.modules import DashModule
+        from core.ai.modules import DashModule, Spell1Module
         for mod in modules:
             if mod == "dash":
                 unit.ai.add_module(DashModule(unit, engine))
+            elif mod == "spell1":
+                unit.ai.add_module(Spell1Module(unit, engine))
 
     unit.load_assets()
     return unit

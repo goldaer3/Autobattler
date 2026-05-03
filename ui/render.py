@@ -2,7 +2,7 @@
 import pygame
 from config import (
     SCREEN_W, SCREEN_H, ARENA_W, ARENA_H,
-    GRID_SZ, GRID_COLS, GRID_ROWS, COLORS, DEBUG,
+    GRID_SZ, COLORS, DEBUG,
     BOTTOM_PANEL_H
 )
 from ui.panel import draw_info_section, draw_catalog_section
@@ -26,30 +26,21 @@ def draw_arena(screen, arena_h=None):
         b = int(50 * (1 - ratio) + 25 * ratio)
         pygame.draw.line(screen, (r, g, b), (0, y), (ARENA_W, y))
 
-    pygame.draw.rect(screen, (200, 200, 220), (0, 0, ARENA_W, arena_h), 3)
-
-    for col in range(GRID_COLS + 1):
+    # Draw grid
+    grid_color = (40, 40, 70)
+    for col in range(1, ARENA_W // GRID_SZ):
         x = col * GRID_SZ
-        color = (50, 50, 80, 80) if col != GRID_COLS // 2 else (100, 100, 150, 150)
-        pygame.draw.line(screen, color, (x, 0), (x, arena_h))
+        pygame.draw.line(screen, grid_color, (x, 0), (x, arena_h), 1)
 
-    for row in range(GRID_ROWS + 1):
+    for row in range(1, arena_h // GRID_SZ):
         y = row * GRID_SZ
-        pygame.draw.line(screen, (50, 50, 80, 80), (0, y), (ARENA_W, y))
-    
+        pygame.draw.line(screen, grid_color, (0, y), (ARENA_W, y), 1)
+
+    # Draw team dividing line
     mid_x = ARENA_W // 2
-    
-    for col in range(GRID_COLS // 2 - 1):
-        for row in range(GRID_ROWS):
-            rect = pygame.Rect(col * GRID_SZ, row * GRID_SZ, GRID_SZ, GRID_SZ)
-            pygame.draw.rect(screen, (*COLORS["team_a_indicator"], 30), rect)
-    
-    for col in range(GRID_COLS // 2 + 1, GRID_COLS):
-        for row in range(GRID_ROWS):
-            rect = pygame.Rect(col * GRID_SZ, row * GRID_SZ, GRID_SZ, GRID_SZ)
-            pygame.draw.rect(screen, (*COLORS["team_b_indicator"], 30), rect)
-    
-    pygame.draw.line(screen, COLORS["accent"], (mid_x, 0), (mid_x, ARENA_H), 3)
+    pygame.draw.line(screen, COLORS["accent"], (mid_x, 0), (mid_x, arena_h), 3)
+
+    pygame.draw.rect(screen, (200, 200, 220), (0, 0, ARENA_W, arena_h), 3)
 
 def draw_unit(screen, unit, font):
     sx, sy = int(unit.x), int(unit.y)
