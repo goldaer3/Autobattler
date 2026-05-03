@@ -130,15 +130,23 @@ class BotAnimationController:
             self._frame = 0
             self._loop = loop
             self._finished = False
+            self._current_anim.reset()
     
     def update(self, dt):
         if self._current_anim is None:
-            return
+            return self._frame
         
+        if not self._loop and self._finished:
+            return self._frame
+        
+        prev_frame = self._frame
         self._frame = self._current_anim.update(dt)
         
-        if not self._loop and self._frame == 0 and not self._finished:
+        if not self._loop and self._frame == 0 and prev_frame > 0:
             self._finished = True
+            self._frame = prev_frame
+        
+        return self._frame
     
     def reset(self):
         self._frame = 0

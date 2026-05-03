@@ -61,6 +61,9 @@ def draw_unit(screen, unit, font):
         pygame.draw.circle(screen, unit_color, (sx, sy), size // 2)
         pygame.draw.circle(screen, COLORS["text"], (sx, sy), size // 2, 2)
     
+    if not unit.alive:
+        return
+    
     hp_w, hp_h = 40, 6
     hp_x, hp_y = sx - hp_w // 2, sy - GRID_SZ // 2 - 12
     
@@ -69,9 +72,6 @@ def draw_unit(screen, unit, font):
     pygame.draw.rect(screen, COLORS["hp_bar_bg"], (hp_x, hp_y, hp_w, hp_h))
     hp_ratio = unit.current_hp / unit.hp if unit.hp > 0 else 0
     pygame.draw.rect(screen, hp_color, (hp_x, hp_y, int(hp_w * hp_ratio), hp_h))
-    
-    team_color = COLORS["team_a_indicator"] if unit.team == "A" else COLORS["team_b_indicator"]
-    pygame.draw.ellipse(screen, (*team_color, 180), (sx - 4, sy + GRID_SZ // 2 + 5, 8, 8))
     
     if DEBUG:
         name_text = font.render(unit.name[:6], True, COLORS["text"])

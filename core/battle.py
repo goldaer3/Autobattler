@@ -44,6 +44,8 @@ class BattleEngine:
         for u in self.all_units:
             u.attack_state = "idle"
             u.attack_timer = 0.0
+            if hasattr(u, '_start_battle'):
+                u._start_battle()
 
     def get_distance(self, u1, u2) -> float:
         dx = u1.x - u2.x
@@ -64,75 +66,23 @@ class BattleEngine:
         
         for unit in self.all_units:
             if not unit.alive:
+                if hasattr(unit, 'update_sprite'):
+                    unit.update_sprite(dt, None)
                 continue
-            
-            if hasattr(unit, '_is_moving'):
-                unit._is_moving = False
             
             target = self.find_nearest_enemy(unit)
             if not target:
                 continue
             
-            distance = self.get_distance(unit, target)
-            attack_range = unit.attack_range if unit.attack_range > 0 else GRID_SZ * 1.5
+            self._process_ai(unit, target, dt)
             
-            if unit.attack_state == "idle":
-                if distance <= attack_range:
-                    if "ranged" in unit.tags:
-                        proj = Projectile(
-                            x=unit.x,
-                            y=unit.y,
-                            target=target,
-                            speed=unit.speed * 250,
-                            damage=unit.atk,
-                            color=unit.color,
-                            team=unit.team
-                        )
-                        self.projectiles.append(proj)
-                        unit.attack_cooldown = 1.0 / unit.speed
-                        unit.attack_state = "cooldown"
-                    else:
-                        unit.attack_state = "attacking"
-                        unit.attack_timer = 0.3
-                else:
-                    dx = target.x - unit.x
-                    dy = target.y - unit.y
-                    length = math.sqrt(dx * dx + dy * dy) or 1
-                    speed = unit.speed * 100 * dt
-                    unit.x += (dx / length) * speed
-                    unit.y += (dy / length) * speed
-                    
-                    if hasattr(unit, '_is_moving'):
-                        unit._is_moving = True
-                
-                if "dash_ability" in unit.tags:
-                    if hasattr(unit, 'try_dash'):
-                        unit.try_dash(target, self)
-            
-            elif unit.attack_state == "attacking":
-                unit.attack_timer -= dt
-                if unit.attack_timer <= 0:
-                    dmg = target.take_damage(unit.atk)
-                    unit.regen_mana(3.0)
-                    self.logs.append(f"{unit.name} -> {target.name}: -{dmg:.0f} HP")
-                    if not target.alive:
-                        self.logs.append(f"{target.name} defeated!")
-                    unit.attack_state = "cooldown"
-                    unit.attack_cooldown = 1.0 / unit.speed
-            
-            elif unit.attack_state == "cooldown":
-                if unit.attack_cooldown > 0:
-                    unit.attack_cooldown -= dt
-                else:
-                    unit.attack_state = "idle"
-            
-            if hasattr(unit, 'update_dash'):
-                unit.update_dash(dt)
+            if hasattr(unit, '_update_dash'):
+                unit._update_dash(dt)
             if hasattr(unit, 'dash_cooldown') and unit.dash_cooldown > 0:
                 unit.dash_cooldown -= dt
             
-            if hasattr(unit, 'update_animation'):
-                unit.update_animation(dt, target)
+            if hasattr(unit, 'update_sprite'):
+                unit.update_sprite(dt, target)
             else:
                 unit.update_animation(dt)
 
@@ -142,6 +92,145 @@ class BattleEngine:
         if not a_alive or not b_alive:
             return False
         return True
+
+    def _process_ai(self, unit, target, dt):
+        distance = self.get_distance(unit, target)
+        attack_range = unit.attack_range if unit.attack_range > 0 else GRID_SZ * 1.5
+        
+        # BotWheel AI
+        if unit.id == "bot_wheel":
+            self._bot_wheel_ai(unit, target, distance, attack_range, dt)
+            return
+        
+        # Default AI
+        if "ranged" in unit.tags:
+            if distance <= attack_range and unit.attack_state == "idle":
+                proj = Projectile(
+                    x=unit.x,
+                    y=unit.y,
+                    target=target,
+                    speed=unit.speed * 250,
+                    damage=unit.atk,
+                    color=unit.color,
+                    team=unit.team
+                )
+                self.projectiles.append(proj)
+                unit.attack_cooldown = 1.0 / unit.speed
+                unit.attack_state = "cooldown"
+            elif unit.attack_state == "idle":
+                dx = target.x - unit.x
+                dy = target.y - unit.y
+                length = math.sqrt(dx * dx + dy * dy) or 1
+                speed = unit.speed * 100 * dt
+                unit.x += (dx / length) * speed
+                unit.y += (dy / length) * speed
+        else:
+            if distance <= attack_range and unit.attack_state == "idle":
+                unit.attack_state = "attacking"
+                unit.attack_timer = 0.3
+            elif unit.attack_state == "idle":
+                dx = target.x - unit.x
+                dy = target.y - unit.y
+                length = math.sqrt(dx * dx + dy * dy) or 1
+                speed = unit.speed * 100 * dt
+                unit.x += (dx / length) * speed
+                unit.y += (dy / length) * speed
+        
+        if unit.attack_state == "attacking":
+            unit.attack_timer -= dt
+            if unit.attack_timer <= 0:
+                dmg = target.take_damage(unit.atk)
+                unit.regen_mana(3.0)
+                self.logs.append(f"{unit.name} -> {target.name}: -{dmg:.0f} HP")
+                if not target.alive:
+                    self.logs.append(f"{target.name} defeated!")
+                unit.attack_state = "cooldown"
+                unit.attack_cooldown = 1.0 / unit.speed
+        elif unit.attack_state == "cooldown":
+            if unit.attack_cooldown > 0:
+                unit.attack_cooldown -= dt
+            else:
+                unit.attack_state = "idle"
+
+    def _bot_wheel_ai(self, unit, target, distance, attack_range, dt):
+        retreat_range = attack_range * 0.7
+        
+        # Handle state machine
+        if hasattr(unit, '_state'):
+            state = unit._state
+        else:
+            unit._state = "static_idle"
+            state = "static_idle"
+        
+        # State transitions
+        if state == "static_idle":
+            if not hasattr(unit, '_static_timer'):
+                unit._static_timer = 0.0
+            unit._static_timer += dt
+            if unit._static_timer >= 0.5:
+                unit._state = "wake"
+                unit._static_timer = 0.0
+            return
+        
+        elif state == "wake":
+            if not hasattr(unit, '_wake_timer'):
+                unit._wake_timer = 0.0
+            unit._wake_timer += dt
+            if unit._wake_timer >= 0.5:
+                unit._state = "idle"
+                unit._wake_timer = 0.0
+            return
+        
+        elif state == "reload":
+            if not hasattr(unit, '_reload_timer'):
+                unit._reload_timer = 0.0
+            unit._reload_timer += dt
+            if unit._reload_timer >= 0.5:
+                unit._state = "idle"
+                unit._reload_timer = 0.0
+                unit._can_shoot = True
+            return
+        
+        elif state == "idle":
+            unit._state = "idle"
+        
+        # Actions
+        if state == "idle" or state == "reload":
+            # Can move while idle or reloading
+            if distance <= attack_range and unit._can_shoot:
+                # Shoot
+                proj = Projectile(
+                    x=unit.x,
+                    y=unit.y,
+                    target=target,
+                    speed=unit.speed * 250,
+                    damage=unit.atk,
+                    color=unit.color,
+                    team=unit.team
+                )
+                self.projectiles.append(proj)
+                unit._can_shoot = False
+                unit._state = "reload"
+                return
+            
+            # Movement
+            dx = target.x - unit.x
+            dy = target.y - unit.y
+            length = math.sqrt(dx * dx + dy * dy) or 1
+            
+            # Retreat if too close
+            if distance < retreat_range:
+                speed = unit.speed * 80 * dt
+                unit.x -= (dx / length) * speed
+                unit.y -= (dy / length) * speed
+                
+                # Dash back
+                if "dash_ability" in unit.tags and hasattr(unit, '_try_dash') and distance < retreat_range * 0.5:
+                    unit._try_dash(target, self)
+            else:
+                speed = unit.speed * 100 * dt
+                unit.x += (dx / length) * speed
+                unit.y += (dy / length) * speed
 
     def run_simulation(self, dt: float = 1/60) -> dict:
         while self.step(dt):

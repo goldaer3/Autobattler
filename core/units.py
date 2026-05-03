@@ -110,7 +110,14 @@ class Unit:
 
     def __post_init__(self):
         self.current_hp = self.hp
-
+        self._is_moving = False
+    
+    def set_action(self, action_name):
+        pass
+    
+    def on_battle_start(self):
+        pass
+    
     def load_assets(self):
         size = GRID_SZ - 20
         self.sprite = pygame.Surface((size, size), pygame.SRCALPHA)
@@ -187,48 +194,72 @@ class BotWheel(Unit, RangedUnit):
         self.dash_dir = 0
         self.dash_timer = 0.0
         self.dashing = False
-        self._is_moving = False
         self._anim = None
-        self._current_anim = "idle"
         self._facing_right = kwargs.get('team', 'A') == "A"
+        self._can_shoot = True
+    
+    def _start_battle(self):
+        self._state = "static_idle"
+        self._can_shoot = True
+    
+    def _try_dash(self, enemy, engine) -> bool:
+        if self.dash_cooldown > 0 or self.dashing:
+            return False
+        dist = engine.get_distance(self, enemy)
+        if dist >= self.attack_range * 0.7:
+            return False
+        self.dashing = True
+        self.dash_timer = 0.3
+        self.dash_cooldown = self.dash_cd
+        dx = self.x - enemy.x
+        dy = self.y - enemy.y
+        d = math.sqrt(dx * dx + dy * dy)
+        if d > 0:
+            self._dash_target_x = self.x + (dx / d) * self.dash_distance
+            self._dash_target_y = self.y + (dy / d) * self.dash_distance
+        return True
+    
+    def _update_dash(self, dt):
+        if not self.dashing:
+            return
+        self.dash_timer -= dt
+        if self.dash_timer <= 0:
+            self.dashing = False
+            return
+        dx = self._dash_target_x - self.x
+        dy = self._dash_target_y - self.y
+        dist = math.sqrt(dx * dx + dy * dy)
+        if dist > 5:
+            speed = self.speed * self.dash_distance * 5 * dt
+            self.x += (dx / dist) * speed
+            self.y += (dy / dist) * speed
     
     def load_assets(self):
         self._anim = BotAnimationController("idle")
+    
+    def set_action(self, action_name):
+        map = {
+            "static_idle": "idle",
+            "idle": "idle",
+            "move": "move",
+            "attack": "shoot",
+            "reload": "charge",
+            "dash": "dash",
+            "damage": "damage",
+            "death": "death",
+        }
         if self._anim:
-            self.sprite = self._anim.current_frame
-            if not self._facing_right and self.sprite:
-                self.sprite = pygame.transform.flip(self.sprite, True, False)
+            anim_name = map.get(action_name, "idle")
+            loop = action_name in ["idle", "move"]
+            self._anim.set_animation(anim_name, loop=loop)
     
-    def set_animation(self, name):
-        if self._anim and name != self._current_anim:
-            self._anim.set_animation(name)
-            self._current_anim = name
-    
-    def update_animation(self, dt: float, target=None):
+    def update_sprite(self, dt, target=None):
         if not self._anim:
             return
         
-        # Determine target animation first
-        if self.dashing:
-            target_anim = "dash"
-        elif self.attack_state == "cooldown" or self.attack_cooldown > 0:
-            target_anim = "shoot"
-        elif self.attack_state == "attacking":
-            target_anim = "charge"
-        elif getattr(self, '_is_moving', False):
-            target_anim = "move"
-        else:
-            target_anim = "idle"
-        
-        # Set animation if changed
-        if target_anim != self._current_anim:
-            self.set_animation(target_anim)
-        
-        # Update and get frame
         self._anim.update(dt)
         frame = self._anim.current_frame
         
-        # Flip based on direction
         if target and hasattr(target, 'x'):
             self._facing_right = target.x > self.x
         
@@ -237,64 +268,7 @@ class BotWheel(Unit, RangedUnit):
         
         self.sprite = frame
     
-    def try_dash(self, enemy, engine) -> bool:
-        if self.dash_cooldown > 0 or self.dashing:
-            return False
-        
-        dist = engine.get_distance(self, enemy)
-        ideal_dist = self.attack_range * 0.7
-        
-        if dist < ideal_dist:
-            self.dash_dir = -1
-        elif dist > self.attack_range:
-            self.dash_dir = 1
-        else:
-            return False
-        
-        self.dashing = True
-        self.dash_timer = 0.3
-        self.dash_cooldown = self.dash_cd
-        self.set_animation("dash")
-        
-        if self.dash_dir > 0:
-            self._dash_target_x = enemy.x
-            self._dash_target_y = enemy.y
-        else:
-            dx = self.x - enemy.x
-            dy = self.y - enemy.y
-            d = math.sqrt(dx * dx + dy * dy)
-            if d > 0:
-                self._dash_target_x = self.x + (dx / d) * self.dash_distance
-                self._dash_target_y = self.y + (dy / d) * self.dash_distance
-            else:
-                self._dash_target_x = self.x + self.dash_distance
-                self._dash_target_y = self.y
-        
-        return True
-    
-    def update_dash(self, dt):
-        if not self.dashing:
-            return
-        
-        self.dash_timer -= dt
-        
-        target_x, target_y = self._dash_target_x, self._dash_target_y
-        
-        dx = target_x - self.x
-        dy = target_y - self.y
-        dist = math.sqrt(dx * dx + dy * dy)
-        
-        if dist > 5:
-            speed = self.speed * self.dash_distance * 5 * dt
-            self.x += (dx / dist) * speed
-            self.y += (dy / dist) * speed
-        else:
-            self.dashing = False
-        
-        if self.dash_timer <= 0:
-            self.dashing = False
-
-UNIT_CLASSES = {
+    UNIT_CLASSES = {
     "warrior": Warrior,
     "archer": Archer,
     "mage": Mage,

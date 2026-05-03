@@ -53,7 +53,7 @@ units:
     name: Bot Wheel
     color: [255, 100, 50]
     hp: 100
-    atk: 22
+    atk: 35
     def: 3
     speed: 1.2
     range: 150
