@@ -5,6 +5,7 @@ ASSETS_DIR = Path(__file__).resolve().parent.parent.parent / "assets" / "units"
 
 _bot_anims = None
 _knight_anims = None
+_skeleton_anims = None
 
 def _get_bot_anims():
     global _bot_anims
@@ -49,9 +50,29 @@ def _get_knight_anims():
             anim._cache.clear()
     return _knight_anims
 
+def _get_skeleton_anims():
+    global _skeleton_anims
+    if _skeleton_anims is None:
+        try:
+            pygame.init()
+        except:
+            pass
+        skel_dir = ASSETS_DIR / "Skeleton"
+        _skeleton_anims = {
+            "idle": SpritesheetAnimator(skel_dir / "Skeleton Idle.gif", fps=8, frame_width=24, frame_height=32, target_size=0, orientation="horizontal"),
+            "move": SpritesheetAnimator(skel_dir / "Skeleton Walk.gif", fps=10, frame_width=22, frame_height=33, target_size=0, orientation="horizontal"),
+            "attack": SpritesheetAnimator(skel_dir / "Skeleton Attack.gif", fps=12, frame_width=43, frame_height=37, target_size=0, orientation="horizontal"),
+            "hurt": SpritesheetAnimator(skel_dir / "Skeleton Hit.gif", fps=10, frame_width=30, frame_height=32, target_size=0, orientation="horizontal"),
+            "death": SpritesheetAnimator(skel_dir / "Skeleton Dead.gif", fps=8, frame_width=33, frame_height=32, target_size=0, orientation="horizontal"),
+        }
+        for anim in _skeleton_anims.values():
+            anim._cache.clear()
+    return _skeleton_anims
+
 ANIM_MAPPING = {
     "bot_wheel": _get_bot_anims,
     "knight": _get_knight_anims,
+    "skeleton": _get_skeleton_anims,
 }
 
 def get_anims(unit_type):
@@ -192,7 +213,6 @@ class SpritesheetAnimator:
                     min_y = min(min_y, y)
                     max_x = max(max_x, x)
                     max_y = max(max_y, y)
-
         
 
         if max_x >= min_x and max_y >= min_y:

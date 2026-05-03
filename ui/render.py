@@ -58,12 +58,6 @@ def draw_unit(screen, unit, font):
     if unit.sprite:
         w, h = unit.sprite.get_size()
         screen.blit(unit.sprite, (sx - w // 2, sy - h // 2))
-    else:
-        size = GRID_SZ - 20
-        unit_color = getattr(unit, 'color', (200, 200, 200))
-        team_color = COLORS["team_a_indicator"] if unit.team == "A" else COLORS["team_b_indicator"]
-        pygame.draw.circle(screen, unit_color, (sx, sy), size // 2)
-        pygame.draw.circle(screen, COLORS["text"], (sx, sy), size // 2, 2)
     
     if not unit.alive:
         return
@@ -76,6 +70,12 @@ def draw_unit(screen, unit, font):
     pygame.draw.rect(screen, COLORS["hp_bar_bg"], (hp_x, hp_y, hp_w, hp_h))
     hp_ratio = unit.current_hp / unit.hp if unit.hp > 0 else 0
     pygame.draw.rect(screen, hp_color, (hp_x, hp_y, int(hp_w * hp_ratio), hp_h))
+    
+    if unit.has_status("stun"):
+        pygame.draw.circle(screen, (150, 150, 150), (sx, hp_y - 10), 6)
+    
+    if unit.has_status("fear"):
+        pygame.draw.circle(screen, (180, 100, 220), (sx, hp_y - 10), 6)
     
     if DEBUG:
         name_text = font.render(unit.name[:6], True, COLORS["text"])

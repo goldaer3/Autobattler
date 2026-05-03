@@ -9,6 +9,7 @@ units:
     range: 55
     tags: [melee, warrior]
     ai_level: 1
+    modules: [power_attack, roll]
 
   - id: bot_wheel
     name: Bot Wheel
@@ -21,3 +22,14 @@ units:
     tags: [ranged, dash_ability]
     ai_level: 2
     modules: [dash]
+
+  - id: skeleton
+    name: Skeleton
+    color: [200, 200, 200]
+    hp: 120
+    atk: 60
+    def: 2
+    speed: 0.8
+    range: 45
+    tags: [melee, undead]
+    ai_level: 1

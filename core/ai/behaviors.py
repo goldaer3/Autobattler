@@ -19,14 +19,28 @@ class AI1(AIBehavior):
     def __init__(self, unit, engine):
         super().__init__(unit, engine)
         self._reload_timer = 0.0
+        self._special_attack_timer = 0.0
 
     def update(self, dt, target):
         if not target or not target.alive:
             return
 
+        if self.unit.has_status("stun"):
+            super().update(dt, target)
+            return
+
+        if self.unit.has_status("fear") and self.unit.fear_source and self.unit.fear_source.alive:
+            self._update_flee_from_fear(dt)
+            super().update(dt, target)
+            return
+
         if self.unit.has_status("attacking") or self.unit.has_status("dashing"):
             super().update(dt, target)
             return
+
+        if hasattr(self.unit, '_special_attack_cooldown'):
+            if self.unit._special_attack_cooldown > 0:
+                self.unit._special_attack_cooldown -= dt
 
         distance = self.engine.get_distance(self.unit, target)
         attack_range = self.unit.attack_range if self.unit.attack_range > 0 else 60
@@ -44,10 +58,32 @@ class AI1(AIBehavior):
         length = math.sqrt(dx * dx + dy * dy) or 1
 
         if distance <= attack_range and self._reload_timer <= 0:
-            self.unit.add_status("attacking")
-            self.unit.set_status_with_timer("attacking", 0.5)
-            dmg = target.take_damage(self.unit.atk)
-            self.engine.logs.append(f"{self.unit.name} -> {target.name}: -{dmg:.0f} HP")
+            is_special = (hasattr(self.unit, '_special_attack_cooldown') and 
+                        self.unit._special_attack_cooldown <= 0)
+            
+            if is_special:
+                self.unit.add_status("attacking_special")
+                special_duration = getattr(self.unit, '_special_attack_duration', 0.33)
+                self.unit.set_status_with_timer("attacking_special", special_duration)
+                dmg = target.take_damage(self.unit.atk * 2)
+                target.set_status_with_timer("stun", 1.0)
+                self.engine.logs.append(f"{self.unit.name} -> {target.name}: -{dmg:.0f} HP (SPECIAL + STUN!)")
+                self.unit._special_attack_cooldown = self.unit._special_attack_cd if hasattr(self.unit, '_special_attack_cd') else 3.0
+            else:
+                self.unit.add_status("attacking")
+                duration = getattr(self.unit, 'attack_duration', 0.5)
+                self.unit.set_status_with_timer("attacking", duration)
+                dmg = target.take_damage(self.unit.atk)
+                self.engine.logs.append(f"{self.unit.name} -> {target.name}: -{dmg:.0f} HP")
+
+                if self.unit.id == "skeleton" and not target.has_status("stun") and target.alive:
+                    import random
+                    if random.random() < 0.25:
+                        target.add_status("fear")
+                        target.set_status_with_timer("fear", 2.0)
+                        target.fear_source = self.unit
+                        self.engine.logs.append(f"{target.name} is fearful of {self.unit.name}!")
+            
             if not target.alive:
                 self.engine.logs.append(f"{target.name} defeated!")
             self._reload_timer = self.unit.attack_cooldown
@@ -58,6 +94,38 @@ class AI1(AIBehavior):
             self.unit.add_status("moving")
 
         super().update(dt, target)
+
+    def _update_flee_from_fear(self, dt):
+        fear_source = self.unit.fear_source
+        if not fear_source or not fear_source.alive:
+            self.unit.remove_status("fear")
+            self.unit.fear_source = None
+            return
+
+        dx = self.unit.x - fear_source.x
+        dy = self.unit.y - fear_source.y
+        dist = math.sqrt(dx * dx + dy * dy)
+        if dist == 0:
+            dist = 1
+
+        if hasattr(self.unit, '_facing_right'):
+            self.unit._facing_right = fear_source.x < self.unit.x
+
+        flee_speed = self.unit.speed * 120 * dt
+        margin = 40
+        new_x = self.unit.x + (dx / dist) * flee_speed
+        new_y = self.unit.y + (dy / dist) * flee_speed
+
+        if margin < new_x < ARENA_W - margin and margin < new_y < BATTLE_ARENA_H - margin:
+            self.unit.x = new_x
+            self.unit.y = new_y
+        else:
+            angle = math.atan2(dy, dx)
+            angle += math.pi / 2
+            self.unit.x += math.cos(angle) * flee_speed * 0.5
+            self.unit.y += math.sin(angle) * flee_speed * 0.5
+
+        self.unit.add_status("moving")
 
 
 class AI2(AIBehavior):
@@ -153,6 +221,15 @@ class AI2(AIBehavior):
         if not target or not target.alive:
             return
 
+        if self.unit.has_status("stun"):
+            super().update(dt, target)
+            return
+
+        if self.unit.has_status("fear") and self.unit.fear_source and self.unit.fear_source.alive:
+            self._update_flee_from_fear(dt)
+            super().update(dt, target)
+            return
+
         if self.unit.has_status("attacking") or self.unit.has_status("dashing"):
             super().update(dt, target)
             return
@@ -210,3 +287,35 @@ class AI2(AIBehavior):
             self.unit.add_status("moving")
 
         super().update(dt, target)
+
+    def _update_flee_from_fear(self, dt):
+        fear_source = self.unit.fear_source
+        if not fear_source or not fear_source.alive:
+            self.unit.remove_status("fear")
+            self.unit.fear_source = None
+            return
+
+        dx = self.unit.x - fear_source.x
+        dy = self.unit.y - fear_source.y
+        dist = math.sqrt(dx * dx + dy * dy)
+        if dist == 0:
+            dist = 1
+
+        if hasattr(self.unit, '_facing_right'):
+            self.unit._facing_right = fear_source.x < self.unit.x
+
+        flee_speed = self.unit.speed * 120 * dt
+        margin = 40
+        new_x = self.unit.x + (dx / dist) * flee_speed
+        new_y = self.unit.y + (dy / dist) * flee_speed
+
+        if margin < new_x < ARENA_W - margin and margin < new_y < BATTLE_ARENA_H - margin:
+            self.unit.x = new_x
+            self.unit.y = new_y
+        else:
+            angle = math.atan2(dy, dx)
+            angle += math.pi / 2
+            self.unit.x += math.cos(angle) * flee_speed * 0.5
+            self.unit.y += math.sin(angle) * flee_speed * 0.5
+
+        self.unit.add_status("moving")

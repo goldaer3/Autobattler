@@ -112,6 +112,7 @@ class Unit:
     attack_state: str = "idle"
     attack_timer: float = 0.0
     _pos_history: list = field(default_factory=list)
+    fear_source: 'Unit' = None
 
     def __post_init__(self):
         self.current_hp = self.hp
@@ -311,17 +312,23 @@ class Knight(AnimatedUnit):
         self._roll_distance = 100
         self._roll_target_x = 0.0
         self._roll_target_y = 0.0
+        self._special_attack_cooldown = 0.0
+        self._special_attack_cd = 3.0
+        self._special_attack_duration = 0.33
 
     def load_assets(self):
         from assets.units.bot_animation import BotAnimationController
         self._anim = BotAnimationController("idle", unit_type="knight")
 
     def _get_current_animation(self) -> str:
-        priority_order = ["death", "rolling", "attacking", "hurt", "moving"]
+        priority_order = ["death", "stun", "rolling", "attacking_special", "attacking", "damage", "hurt", "moving"]
         anim_map = {
             "death": "death",
+            "stun": "hurt",
             "rolling": "roll",
+            "attacking_special": "attack",
             "attacking": "attack2",
+            "damage": "hurt",
             "hurt": "hurt",
             "moving": "move",
         }
@@ -331,7 +338,9 @@ class Knight(AnimatedUnit):
         return "idle"
 
     def _is_loop_animation(self, anim_name: str) -> bool:
-        status_loop = self.status & {"idle", "moving", "attacking"}
+        if anim_name in ("attack", "attack2", "attacking_special"):
+            return False
+        status_loop = self.status & {"idle", "moving", "attacking", "attacking_special"}
         return bool(status_loop)
 
     def _try_roll(self, enemy_x, enemy_y):
@@ -473,9 +482,10 @@ class BotWheel(AnimatedUnit, RangedUnit):
         return dmg
 
     def _get_current_animation(self) -> str:
-        priority_order = ["death", "dashing", "damaged", "attacking", "reloading", "moving"]
+        priority_order = ["death", "stun", "dashing", "damaged", "attacking", "reloading", "moving"]
         anim_map = {
             "death": "death",
+            "stun": "damage",
             "dashing": "dash",
             "damaged": "damage",
             "attacking": "shoot",
@@ -488,6 +498,8 @@ class BotWheel(AnimatedUnit, RangedUnit):
         return "idle"
 
     def _is_loop_animation(self, anim_name: str) -> bool:
+        if anim_name in ("shoot", "attack"):
+            return False
         status_loop = self.status & {"idle", "moving", "dashing", "attacking"}
         return bool(status_loop)
 
@@ -524,9 +536,85 @@ class BotWheel(AnimatedUnit, RangedUnit):
         self._update_anim_state(dt, effective_target)
 
 
+class Skeleton(Unit):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._anim = None
+        self._facing_right = kwargs.get('team', 'A') == "A"
+
+    def load_assets(self):
+        from assets.units.bot_animation import BotAnimationController
+        self._anim = BotAnimationController("idle", unit_type="skeleton")
+
+    def _get_current_animation(self) -> str:
+        priority_order = ["death", "attacking", "damage", "hurt", "moving"]
+        anim_map = {
+            "death": "death",
+            "attacking": "attack",
+            "damage": "hurt",
+            "hurt": "hurt",
+            "moving": "move",
+        }
+        for status in priority_order:
+            if status in self.status:
+                return anim_map.get(status, "idle")
+        return "idle"
+
+    def _is_loop_animation(self, anim_name: str) -> bool:
+        if anim_name in ("attack",):
+            return False
+        status_loop = self.status & {"idle", "moving", "attacking"}
+        return bool(status_loop)
+
+    def update_sprite(self, dt, target=None):
+        if not self._anim:
+            return
+
+        if self.has_status("death"):
+            if self._anim._current_anim_name != "death":
+                self._anim.set_animation("death", loop=False)
+            target = None
+
+        self._anim.update(dt)
+
+        frame = self._anim.current_frame
+
+        if target and hasattr(target, 'x') and self.alive:
+            self._facing_right = target.x > self.x
+
+        if not self._facing_right and frame:
+            frame = pygame.transform.flip(frame, True, False)
+
+        self.sprite = frame
+
+    def update(self, dt, engine, target):
+        self.update_status_timers(dt)
+
+        is_dead = not self.alive
+        effective_target = None if is_dead else target
+
+        if not hasattr(self, 'ai') or not self.ai:
+            pass
+
+        anim_name = self._get_current_animation()
+        
+        should_switch = True
+        if self._anim:
+            if self._anim._current_anim_name == anim_name:
+                should_switch = False
+        
+        if should_switch:
+            loop = self._is_loop_animation(anim_name)
+            status_duration = self._status_durations.get(anim_name)
+            self._anim.set_animation(anim_name, loop=loop, status_duration=status_duration)
+        
+        self.update_sprite(dt, effective_target)
+
+
 UNIT_CLASSES = {
     "knight": Knight,
     "bot_wheel": BotWheel,
+    "skeleton": Skeleton,
 }
 
 def create_unit_from_data_v2(data, team, x, y, engine=None):

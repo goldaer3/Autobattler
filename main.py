@@ -32,6 +32,7 @@ def main():
     
     state = GameState.DEPLOY
     current_arena_h = ARENA_H
+    panel_visible = True
     battle_engine = None
     battle_result = None
     wave = 1
@@ -57,6 +58,9 @@ def main():
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     running = False
+                
+                if event.key == pygame.K_h:
+                    panel_visible = not panel_visible
                 
                 if event.key == pygame.K_F9:
                     if not anim_debug_active:
@@ -119,10 +123,11 @@ def main():
                     catalog_scroll += 20
                 
                 elif event.button == 1:
-                    hit_uid = hit_test_catalog(mx, my, units_db, catalog_scroll)
-                    if hit_uid:
-                        selected_unit_data = units_db[hit_uid].copy()
-                    elif my < ARENA_H and selected_unit_data and state == GameState.DEPLOY:
+                    if panel_visible:
+                        hit_uid = hit_test_catalog(mx, my, units_db, catalog_scroll)
+                        if hit_uid:
+                            selected_unit_data = units_db[hit_uid].copy()
+                    if my < display_arena_h and selected_unit_data and state == GameState.DEPLOY:
                         team = "A" if mx < ARENA_W // 2 else "B"
                         unit = create_unit_from_data(selected_unit_data, team, mx, my)
                         if team == "A":
@@ -151,8 +156,10 @@ def main():
                         continue
                     anims_finished = False
 
+        display_arena_h = BATTLE_ARENA_H if not panel_visible else current_arena_h
+
         screen.fill(COLORS["bg"])
-        draw_arena(screen, current_arena_h)
+        draw_arena(screen, display_arena_h)
 
         for unit in team_a + team_b:
             draw_unit(screen, unit, font)
@@ -160,7 +167,7 @@ def main():
         if battle_engine and battle_engine.projectiles:
             draw_projectiles(screen, battle_engine.projectiles)
 
-        if selected_unit_data and my < current_arena_h and state == GameState.DEPLOY:
+        if selected_unit_data and my < display_arena_h and state == GameState.DEPLOY:
             preview_team = "A" if mx < ARENA_W // 2 else "B"
             draw_placement_preview(screen, selected_unit_data, mx, my, COLORS["selection_highlight"], preview_team)
 
@@ -175,8 +182,10 @@ def main():
         elif state == GameState.POST_BATTLE:
             state_hint = "Finished!"
 
-        if state != GameState.BATTLE:
+        if panel_visible and state != GameState.BATTLE:
             draw_bottom_panel(screen, font, big_font, battle_result, wave, gold, state_hint, units_db, catalog_scroll, selected_unit_data)
+        
+        display_arena_h = BATTLE_ARENA_H if not panel_visible else current_arena_h
         draw_minimap(screen, team_a + team_b)
         
         if anim_debug_active and anim_debug:
