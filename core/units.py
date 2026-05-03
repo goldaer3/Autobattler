@@ -559,6 +559,10 @@ class BotWheel(AnimatedUnit, RangedUnit):
         if not self._facing_right and frame:
             frame = pygame.transform.flip(frame, True, False)
 
+        if frame and hasattr(self, 'sprite_scale') and self.sprite_scale != 1.0:
+            w, h = frame.get_size()
+            frame = pygame.transform.scale(frame, (int(w * self.sprite_scale), int(h * self.sprite_scale)))
+
         self.sprite = frame
 
     def update(self, dt, engine, target):

@@ -88,6 +88,14 @@ class AI1(AIBehavior):
                 dmg = target.take_damage(self.unit.atk)
                 self.engine.logs.append(f"{self.unit.name} -> {target.name}: -{dmg:.0f} HP")
 
+                if self.unit.id == "skeleton" and not target.has_status("stun") and target.alive:
+                    import random
+                    if random.random() < 0.25:
+                        target.add_status("fear")
+                        target.set_status_with_timer("fear", 2.0)
+                        target.fear_source = self.unit
+                        self.engine.logs.append(f"{target.name} is fearful of {self.unit.name}!")
+            
             if not target.alive:
                 self.engine.logs.append(f"{target.name} defeated!")
             self._reload_timer = self.unit.attack_cooldown
@@ -397,13 +405,10 @@ class AI3(AIBehavior):
                 length = abs(dx) or 1
                 speed = self.unit.speed * 80 * dt
                 self.unit.x += (dx / length) * speed
-                # КОСТЫЛЬ: маг должен быть лицом к стене
-                # Команда A (левая стена): лицом влево -> _facing_right = True (без flip)
-                # Команда B (правая стена): лицом вправо -> _facing_right = False (нужен flip)
-                if self.unit.team == "A":
-                    self.unit._facing_right = True   # Лицом влево (без flip)
-                else:
-                    self.unit._facing_right = False  # Лицом вправо (flip)
+                # Поворачиваемся в сторону движения к краю
+                # Если dx > 0 (движемся вправо), то _facing_right = True (без flip)
+                # Если dx < 0 (движемся влево), то _facing_right = False (нужен flip)
+                self.unit._facing_right = dx > 0
                 self.unit.add_status("moving")
             return
 
