@@ -183,15 +183,21 @@ def draw_placement_preview(screen, unit_data, x, y, color, team="A"):
 
 def draw_projectiles(screen, projectiles):
     for p in projectiles:
-        w, h = 10, 4
-        angle = 0
-        if p.dir_x != 0 or p.dir_y != 0:
-            import math
-            angle = math.degrees(math.atan2(-p.dir_y, p.dir_x))
+        w, h = p.size if hasattr(p, 'size') else (10, 4)
         
-        surf = pygame.Surface((w, h), pygame.SRCALPHA)
-        pygame.draw.rect(surf, (180, 180, 180), (0, 0, w, h))
-        
-        rotated = pygame.transform.rotate(surf, angle)
-        rect = rotated.get_rect(center=(int(p.x), int(p.y)))
-        screen.blit(rotated, rect.topleft)
+        if getattr(p, 'is_ball', False):
+            radius = max(w, h) // 2
+            pygame.draw.circle(screen, p.color, (int(p.x), int(p.y)), radius)
+            pygame.draw.circle(screen, (255, 255, 255), (int(p.x - radius//3), int(p.y - radius//3)), radius//3)
+        else:
+            angle = 0
+            if p.dir_x != 0 or p.dir_y != 0:
+                import math
+                angle = math.degrees(math.atan2(-p.dir_y, p.dir_x))
+            
+            surf = pygame.Surface((w, h), pygame.SRCALPHA)
+            pygame.draw.rect(surf, p.color, (0, 0, w, h))
+            
+            rotated = pygame.transform.rotate(surf, angle)
+            rect = rotated.get_rect(center=(int(p.x), int(p.y)))
+            screen.blit(rotated, rect.topleft)

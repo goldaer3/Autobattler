@@ -9,7 +9,8 @@ units:
     range: 55
     tags: [melee, warrior]
     ai_level: 1
-    modules: [power_attack, roll]
+    modules: [roll, power_attack]
+    attack_cooldown: 0.5
 
   - id: bot_wheel
     name: Bot Wheel
@@ -22,6 +23,7 @@ units:
     tags: [ranged, dash_ability]
     ai_level: 2
     modules: [dash]
+    attack_cooldown: 1.0
 
   - id: skeleton
     name: Skeleton
@@ -33,3 +35,18 @@ units:
     range: 45
     tags: [melee, undead]
     ai_level: 1
+    attack_cooldown: 0.5
+
+  - id: wizard
+    name: Wizard
+    color: [100, 150, 255]
+    hp: 100
+    atk: 60
+    def: 2
+    speed: 0.9
+    range: 9999
+    tags: [ranged, magic]
+    ai_level: 3
+    modules: [spell1]
+    attack_cooldown: 5.0
+    attack_duration: 1.0

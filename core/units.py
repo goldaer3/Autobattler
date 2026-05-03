@@ -6,7 +6,7 @@ from pathlib import Path
 from assets.units.bot_animation import BotAnimationController
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from config import GRID_SZ, COLORS
+from config import GRID_SZ, COLORS, ARENA_W, BATTLE_ARENA_H
 
 class RangedUnit:
     def get_projectile_speed(self) -> float:
@@ -235,6 +235,8 @@ def create_unit_from_data(data, team, x, y):
         def_stat=float(data.get("def", 0)),
         speed=float(data.get("speed", 1.0)),
         attack_range=float(data.get("range", 0)),
+        attack_cooldown=float(data.get("attack_cooldown", 0.5)),
+        attack_duration=float(data.get("attack_duration", 0.5)),
         tags=data.get("tags", []),
         team=team,
         x=x,
@@ -315,6 +317,7 @@ class Knight(AnimatedUnit):
         self._special_attack_cooldown = 0.0
         self._special_attack_cd = 3.0
         self._special_attack_duration = 0.33
+        self.sprite_scale = 2.7
 
     def load_assets(self):
         from assets.units.bot_animation import BotAnimationController
@@ -326,8 +329,8 @@ class Knight(AnimatedUnit):
             "death": "death",
             "stun": "hurt",
             "rolling": "roll",
-            "attacking_special": "attack",
-            "attacking": "attack2",
+            "attacking_special": "power_attack",
+            "attacking": "attack",
             "damage": "hurt",
             "hurt": "hurt",
             "moving": "move",
@@ -338,10 +341,34 @@ class Knight(AnimatedUnit):
         return "idle"
 
     def _is_loop_animation(self, anim_name: str) -> bool:
-        if anim_name in ("attack", "attack2", "attacking_special"):
+        if anim_name in ("attack", "power_attack"):
             return False
         status_loop = self.status & {"idle", "moving", "attacking", "attacking_special"}
         return bool(status_loop)
+
+    def update_sprite(self, dt, target=None):
+        if not self._anim:
+            return
+
+        if self.has_status("death"):
+            if self._anim._current_anim_name != "death":
+                self._anim.set_animation("death", loop=False)
+            target = None
+
+        self._anim.update(dt)
+        frame = self._anim.current_frame
+
+        if target and hasattr(target, 'x') and self.alive:
+            self._facing_right = target.x > self.x
+
+        if not self._facing_right and frame:
+            frame = pygame.transform.flip(frame, True, False)
+
+        if frame and hasattr(self, 'sprite_scale') and self.sprite_scale != 1.0:
+            w, h = frame.get_size()
+            frame = pygame.transform.scale(frame, (int(w * self.sprite_scale), int(h * self.sprite_scale)))
+
+        self.sprite = frame
 
     def _try_roll(self, enemy_x, enemy_y):
         if self._roll_cooldown > 0:
@@ -424,6 +451,7 @@ class BotWheel(AnimatedUnit, RangedUnit):
         self._dash_target_y = 0.0
         self._attack_target = None
         self._reload_timer: float = 0.0
+        self.sprite_scale = 2.0
 
     def load_assets(self):
         from assets.units.bot_animation import BotAnimationController
@@ -487,7 +515,7 @@ class BotWheel(AnimatedUnit, RangedUnit):
             "death": "death",
             "stun": "damage",
             "dashing": "dash",
-            "damaged": "damage",
+            "damaged": "hurt",
             "attacking": "shoot",
             "reloading": "charge",
             "moving": "move",
@@ -502,6 +530,30 @@ class BotWheel(AnimatedUnit, RangedUnit):
             return False
         status_loop = self.status & {"idle", "moving", "dashing", "attacking"}
         return bool(status_loop)
+
+    def update_sprite(self, dt, target=None):
+        if not self._anim:
+            return
+
+        if self.has_status("death"):
+            if self._anim._current_anim_name != "death":
+                self._anim.set_animation("death", loop=False)
+            target = None
+
+        self._anim.update(dt)
+        frame = self._anim.current_frame
+
+        if target and hasattr(target, 'x') and self.alive:
+            self._facing_right = target.x > self.x
+
+        if not self._facing_right and frame:
+            frame = pygame.transform.flip(frame, True, False)
+
+        if frame and hasattr(self, 'sprite_scale') and self.sprite_scale != 1.0:
+            w, h = frame.get_size()
+            frame = pygame.transform.scale(frame, (int(w * self.sprite_scale), int(h * self.sprite_scale)))
+
+        self.sprite = frame
 
     def update(self, dt, engine, target):
         self._battle_engine = engine
@@ -541,6 +593,7 @@ class Skeleton(Unit):
         super().__init__(**kwargs)
         self._anim = None
         self._facing_right = kwargs.get('team', 'A') == "A"
+        self.sprite_scale = 2.5
 
     def load_assets(self):
         from assets.units.bot_animation import BotAnimationController
@@ -585,6 +638,10 @@ class Skeleton(Unit):
         if not self._facing_right and frame:
             frame = pygame.transform.flip(frame, True, False)
 
+        if frame and hasattr(self, 'sprite_scale') and self.sprite_scale != 1.0:
+            w, h = frame.get_size()
+            frame = pygame.transform.scale(frame, (int(w * self.sprite_scale), int(h * self.sprite_scale)))
+
         self.sprite = frame
 
     def update(self, dt, engine, target):
@@ -611,10 +668,122 @@ class Skeleton(Unit):
         self.update_sprite(dt, effective_target)
 
 
+class Wizard(AnimatedUnit, RangedUnit):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._reload_timer = 0.0
+        self._special_cooldown = 0.0
+        self._attack_target = None
+        self._spell1_cooldown = 0.0
+        self._spell1_cd = 10.0
+
+    def load_assets(self):
+        from assets.units.bot_animation import BotAnimationController
+        self._anim = BotAnimationController("idle", unit_type="wizard")
+
+    def get_projectile_color(self):
+        return (180, 100, 220)
+
+    def get_projectile_size(self):
+        return (20, 20)
+
+    def try_spell1(self, engine):
+        if self._spell1_cooldown > 0:
+            return False
+        
+        enemies = []
+        for u in engine.all_units:
+            if u.team != self.team and u.alive:
+                enemies.append(u)
+        
+        if not enemies:
+            return False
+        
+        target = min(enemies, key=lambda e: engine.get_distance(self, e))
+        
+        far_corner_x = ARENA_W - 50 if self.x < ARENA_W / 2 else 50
+        far_corner_y = BATTLE_ARENA_H - 50 if self.y < BATTLE_ARENA_H / 2 else 50
+        
+        target.x = far_corner_x
+        target.y = far_corner_y
+        
+        self._spell1_cooldown = self._spell1_cd
+        engine.logs.append(f"{self.name} teleported {target.name} to the void!")
+        return True
+
+    def get_projectile_speed(self):
+        return 200
+
+    def get_projectile_homing(self):
+        return True
+
+    def get_projectile_is_ball(self):
+        return True
+
+    def _get_current_animation(self) -> str:
+        priority_order = ["death", "stun", "attacking", "damage", "hurt", "moving"]
+
+        attack_type = getattr(self, '_attack_type', 'basic')
+        anim_for_attacking = "spell1" if attack_type == "spell" else "attack"
+
+        print(f"[WIZARD ANIM] _attack_type={attack_type}, anim_for_attacking={anim_for_attacking}, status={self.status}")
+
+        anim_map = {
+            "death": "death",
+            "stun": "hurt",
+            "attacking": anim_for_attacking,
+            
+            "damage": "hurt",
+            "hurt": "hurt",
+            "moving": "move",
+        }
+
+        for status in priority_order:
+            if status in self.status:
+                return anim_map.get(status, "idle")
+        return "idle"
+
+    def _is_loop_animation(self, anim_name: str) -> bool:
+        if anim_name in ("attack", "spell1"):
+            return False
+        status_loop = self.status & {"idle", "moving", "attacking"}
+        return bool(status_loop)
+
+    def start_attack(self, target, is_special=False):
+        self._attack_target = target
+        status = "attacking"
+        self.add_status(status)
+        self.set_status_with_timer(status, self.attack_duration)
+
+    def _fire_projectile(self, engine):
+        if self._attack_target and self._attack_target.alive:
+            engine.create_projectile(self, self._attack_target, 
+                                    color=self.get_projectile_color(),
+                                    size=self.get_projectile_size(),
+                                    homing=self.get_projectile_homing(),
+                                    is_ball=self.get_projectile_is_ball())
+        self._attack_target = None
+
+    def update(self, dt, engine, target):
+        self.update_status_timers(dt)
+
+        is_dead = not self.alive
+        effective_target = None if is_dead else target
+
+        if not is_dead:
+            if self._spell1_cooldown > 0:
+                self._spell1_cooldown -= dt
+                if self._spell1_cooldown < 0:
+                    self._spell1_cooldown = 0.0
+
+        self._update_anim_state(dt, effective_target)
+
+
 UNIT_CLASSES = {
     "knight": Knight,
     "bot_wheel": BotWheel,
     "skeleton": Skeleton,
+    "wizard": Wizard,
 }
 
 def create_unit_from_data_v2(data, team, x, y, engine=None):

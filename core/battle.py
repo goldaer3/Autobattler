@@ -14,6 +14,9 @@ class Projectile:
     damage: float
     color: tuple
     team: str
+    size: tuple = (10, 4)
+    homing: bool = False
+    is_ball: bool = False
     target_vx: float = 0.0
     target_vy: float = 0.0
     dir_x: float = 0.0
@@ -28,33 +31,58 @@ class Projectile:
         dy = ty - self.y
         dist = math.sqrt(dx * dx + dy * dy)
         if dist > 0:
-            time_to_hit = dist / self.speed
-            predict_x = tx + self.target_vx * time_to_hit
-            predict_y = ty + self.target_vy * time_to_hit
-            lead_dx = predict_x - self.x
-            lead_dy = predict_y - self.y
-            lead_dist = math.sqrt(lead_dx * lead_dx + lead_dy * lead_dy)
-            if lead_dist > 0:
-                offset = random.uniform(-0.03, 0.03)
-                self.dir_x = (lead_dx / lead_dist) + offset
-                self.dir_y = (lead_dy / lead_dist) + offset
-                d = math.sqrt(self.dir_x * self.dir_x + self.dir_y * self.dir_y)
-                self.dir_x /= d
-                self.dir_y /= d
-            else:
+            if self.homing:
                 self.dir_x = dx / dist
                 self.dir_y = dy / dist
+            else:
+                time_to_hit = dist / self.speed
+                predict_x = tx + self.target_vx * time_to_hit
+                predict_y = ty + self.target_vy * time_to_hit
+                lead_dx = predict_x - self.x
+                lead_dy = predict_y - self.y
+                lead_dist = math.sqrt(lead_dx * lead_dx + lead_dy * lead_dy)
+                if lead_dist > 0:
+                    offset = random.uniform(-0.03, 0.03)
+                    self.dir_x = (lead_dx / lead_dist) + offset
+                    self.dir_y = (lead_dy / lead_dist) + offset
+                    d = math.sqrt(self.dir_x * self.dir_x + self.dir_y * self.dir_y)
+                    self.dir_x /= d
+                    self.dir_y /= d
+                else:
+                    self.dir_x = dx / dist
+                    self.dir_y = dy / dist
         else:
             self.dir_x = 1.0
             self.dir_y = 0.0
         self._initialized = True
-        self.speed *= 2.5
+        if not self.homing:
+            self.speed *= 2.5
 
     def update(self, dt: float, engine: 'BattleEngine') -> bool:
         if not self.target.alive:
-            return False
+            new_target = None
+            min_dist = float('inf')
+            for u in engine.all_units:
+                if u.team != self.team and u.alive:
+                    d = math.sqrt((u.x - self.x) ** 2 + (u.y - self.y) ** 2)
+                    if d < min_dist:
+                        min_dist = d
+                        new_target = u
+            if new_target:
+                self.target = new_target
+            else:
+                return False
 
         self._init_direction()
+
+        if self.homing:
+            dx = self.target.x - self.x
+            dy = self.target.y - self.y
+            dist = math.sqrt(dx * dx + dy * dy)
+            if dist > 0:
+                self.dir_x = dx / dist
+                self.dir_y = dy / dist
+            self._initialized = False
 
         dx = self.target.x - self.x
         dy = self.target.y - self.y
@@ -95,8 +123,15 @@ class BattleEngine:
         unit.y = max(radius, min(self.arena_h - radius, unit.y))
 
     def _initialize_ai(self):
-        from core.ai.behaviors import AI1, AI2
-        from core.ai.modules import DashModule
+        from core.ai.behaviors import AI1, AI2, AI3
+        from core.ai.ai_modules import RollModule, PowerAttackModule, DashModule, Spell1Module
+
+        MODULES_MAP = {
+            "roll": RollModule,
+            "power_attack": PowerAttackModule,
+            "dash": DashModule,
+            "spell1": Spell1Module,
+        }
 
         units_db_path = Path(__file__).resolve().parent.parent / "data" / "units.yaml"
         import yaml
@@ -111,14 +146,16 @@ class BattleEngine:
                 unit.ai = AI1(unit, self)
             elif ai_level == 2:
                 unit.ai = AI2(unit, self)
+            elif ai_level == 3:
+                unit.ai = AI3(unit, self)
 
             modules = unit_data.get("modules", [])
             if unit.ai and modules:
-                for mod in modules:
-                    if mod == "dash":
-                        unit.ai.add_module(DashModule(unit, self))
+                for mod_name in modules:
+                    if mod_name in MODULES_MAP:
+                        unit.ai.add_module(MODULES_MAP[mod_name](unit, self))
 
-    def create_projectile(self, unit, target):
+    def create_projectile(self, unit, target, color=None, size=None, homing=False, is_ball=False):
         vx, vy = target.get_velocity()
         proj = Projectile(
             x=unit.x,
@@ -128,8 +165,11 @@ class BattleEngine:
             target_vy=vy,
             speed=unit.get_projectile_speed(),
             damage=unit.atk,
-            color=unit.color,
-            team=unit.team
+            color=color if color else unit.color,
+            team=unit.team,
+            size=size if size else (10, 4),
+            homing=homing,
+            is_ball=is_ball
         )
         self.projectiles.append(proj)
         return proj

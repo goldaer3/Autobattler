@@ -16,14 +16,14 @@ def _get_bot_anims():
             pass
         bot_dir = ASSETS_DIR / "Bot Wheel"
         _bot_anims = {
-            "idle": SpritesheetAnimator(bot_dir / "static idle.png", fps=5, target_size=0),
-            "move": SpritesheetAnimator(bot_dir / "move with FX.png", fps=6, target_size=0),
-            "shoot": SpritesheetAnimator(bot_dir / "shoot with FX.png", fps=12, target_size=0),
-            "charge": SpritesheetAnimator(bot_dir / "charge.png", fps=8, target_size=0),
-            "dash": SpritesheetAnimator(bot_dir / "GAS dash with FX.png", fps=15, target_size=0),
-            "damage": SpritesheetAnimator(bot_dir / "damaged.png", fps=15, target_size=0),
-            "death": SpritesheetAnimator(bot_dir / "death.png", fps=6, target_size=0),
-            "wake": SpritesheetAnimator(bot_dir / "wake.png", fps=8, target_size=0),
+            "idle": SpritesheetAnimator(bot_dir / "idle.png", fps=5, frame_width=117, frame_height=26, target_size=0),
+            "move": SpritesheetAnimator(bot_dir / "move.png", fps=6, frame_width=117, frame_height=26, target_size=0),
+            "shoot": SpritesheetAnimator(bot_dir / "shoot.png", fps=12, frame_width=117, frame_height=26, target_size=0),
+            "charge": SpritesheetAnimator(bot_dir / "charge.png", fps=8, frame_width=117, frame_height=26, target_size=0),
+            "dash": SpritesheetAnimator(bot_dir / "dash.png", fps=15, frame_width=117, frame_height=26, target_size=0),
+            "hurt": SpritesheetAnimator(bot_dir / "hurt.png", fps=15, frame_width=117, frame_height=26, target_size=0),
+            "death": SpritesheetAnimator(bot_dir / "death.png", fps=6, frame_width=117, frame_height=26, target_size=0),
+            "wake": SpritesheetAnimator(bot_dir / "wake.png", fps=8, frame_width=117, frame_height=26, target_size=0),
         }
         for anim in _bot_anims.values():
             anim._cache.clear()
@@ -38,13 +38,13 @@ def _get_knight_anims():
             pass
         knight_dir = ASSETS_DIR / "Knight"
         _knight_anims = {
-            "idle": SpritesheetAnimator(knight_dir / "__Idle.gif", fps=8, frame_width=120, frame_height=80, target_size=0, orientation="horizontal"),
-            "move": SpritesheetAnimator(knight_dir / "__Run.gif", fps=12, frame_width=120, frame_height=80, target_size=0, orientation="horizontal"),
-            "attack": SpritesheetAnimator(knight_dir / "__Attack.gif", fps=12, frame_width=120, frame_height=80, target_size=0, orientation="horizontal"),
-            "attack2": SpritesheetAnimator(knight_dir / "__Attack2.gif", fps=12, frame_width=120, frame_height=80, target_size=0, orientation="horizontal"),
-            "hurt": SpritesheetAnimator(knight_dir / "__Hit.gif", fps=15, frame_width=120, frame_height=80, target_size=0, orientation="horizontal"),
-            "death": SpritesheetAnimator(knight_dir / "__Death.gif", fps=6, frame_width=120, frame_height=80, target_size=0, orientation="horizontal"),
-            "roll": SpritesheetAnimator(knight_dir / "__Roll.gif", fps=15, frame_width=120, frame_height=80, target_size=0, orientation="horizontal"),
+            "idle": SpritesheetAnimator(knight_dir / "idle.gif", fps=8, frame_width=120, frame_height=80, target_size=0, orientation="horizontal"),
+            "move": SpritesheetAnimator(knight_dir / "move.gif", fps=12, frame_width=120, frame_height=80, target_size=0, orientation="horizontal"),
+            "power_attack": SpritesheetAnimator(knight_dir / "power_attack.gif", fps=12, frame_width=120, frame_height=80, target_size=0, orientation="horizontal"),
+            "attack": SpritesheetAnimator(knight_dir / "attack.gif", fps=12, frame_width=120, frame_height=80, target_size=0, orientation="horizontal"),
+            "hurt": SpritesheetAnimator(knight_dir / "hurt.gif", fps=15, frame_width=120, frame_height=80, target_size=0, orientation="horizontal"),
+            "death": SpritesheetAnimator(knight_dir / "death.gif", fps=6, frame_width=120, frame_height=80, target_size=0, orientation="horizontal"),
+            "roll": SpritesheetAnimator(knight_dir / "roll.gif", fps=15, frame_width=120, frame_height=80, target_size=0, orientation="horizontal"),
         }
         for anim in _knight_anims.values():
             anim._cache.clear()
@@ -59,20 +59,43 @@ def _get_skeleton_anims():
             pass
         skel_dir = ASSETS_DIR / "Skeleton"
         _skeleton_anims = {
-            "idle": SpritesheetAnimator(skel_dir / "Skeleton Idle.gif", fps=8, frame_width=24, frame_height=32, target_size=0, orientation="horizontal"),
-            "move": SpritesheetAnimator(skel_dir / "Skeleton Walk.gif", fps=10, frame_width=22, frame_height=33, target_size=0, orientation="horizontal"),
-            "attack": SpritesheetAnimator(skel_dir / "Skeleton Attack.gif", fps=12, frame_width=43, frame_height=37, target_size=0, orientation="horizontal"),
-            "hurt": SpritesheetAnimator(skel_dir / "Skeleton Hit.gif", fps=10, frame_width=30, frame_height=32, target_size=0, orientation="horizontal"),
-            "death": SpritesheetAnimator(skel_dir / "Skeleton Dead.gif", fps=8, frame_width=33, frame_height=32, target_size=0, orientation="horizontal"),
+            "idle": SpritesheetAnimator(skel_dir / "idle.gif", fps=8, frame_width=24, frame_height=32, target_size=0, orientation="horizontal"),
+            "move": SpritesheetAnimator(skel_dir / "move.gif", fps=10, frame_width=22, frame_height=33, target_size=0, orientation="horizontal"),
+            "attack": SpritesheetAnimator(skel_dir / "attack.gif", fps=12, frame_width=43, frame_height=37, target_size=0, orientation="horizontal"),
+            "hurt": SpritesheetAnimator(skel_dir / "hurt.gif", fps=10, frame_width=30, frame_height=32, target_size=0, orientation="horizontal"),
+            "death": SpritesheetAnimator(skel_dir / "death.gif", fps=8, frame_width=33, frame_height=32, target_size=0, orientation="horizontal"),
         }
         for anim in _skeleton_anims.values():
             anim._cache.clear()
     return _skeleton_anims
 
+_wizard_anims = None
+
+def _get_wizard_anims():
+    global _wizard_anims
+    if _wizard_anims is None:
+        try:
+            pygame.init()
+        except:
+            pass
+        wiz_dir = ASSETS_DIR / "Wizard"
+        _wizard_anims = {
+            "idle": SpritesheetAnimator(wiz_dir / "idle.png", fps=8, frame_width=231, frame_height=190, target_size=0, orientation="horizontal"),
+            "move": SpritesheetAnimator(wiz_dir / "move.png", fps=10, frame_width=231, frame_height=190, target_size=0, orientation="horizontal"),
+            "spell1": SpritesheetAnimator(wiz_dir / "spell1.png", fps=12, frame_width=231, frame_height=190, target_size=0, orientation="horizontal"),
+            "attack": SpritesheetAnimator(wiz_dir / "attack.png", fps=12, frame_width=231, frame_height=190, target_size=0, orientation="horizontal"),
+            "hurt": SpritesheetAnimator(wiz_dir / "hurt.png", fps=10, frame_width=231, frame_height=190, target_size=0, orientation="horizontal"),
+            "death": SpritesheetAnimator(wiz_dir / "death.png", fps=6, frame_width=231, frame_height=190, target_size=0, orientation="horizontal"),
+        }
+        for anim in _wizard_anims.values():
+            anim._cache.clear()
+    return _wizard_anims
+
 ANIM_MAPPING = {
     "bot_wheel": _get_bot_anims,
     "knight": _get_knight_anims,
     "skeleton": _get_skeleton_anims,
+    "wizard": _get_wizard_anims,
 }
 
 def get_anims(unit_type):
@@ -216,15 +239,6 @@ class SpritesheetAnimator:
         
 
         if max_x >= min_x and max_y >= min_y:
-            is_gif = self._gif_frames is not None and self._gif_frames > 1
-
-            if is_gif:
-                cropped_h = self._base_crop_h
-                cropped = pygame.Surface((frame_w, cropped_h), pygame.SRCALPHA)
-                cropped.blit(frame, (0, -self._base_crop_y))
-                self._cache[index] = cropped
-                return cropped
-
             cropped_w = max_x - min_x + 1
             cropped_h = max_y - min_y + 1
             cropped = pygame.Surface((cropped_w, cropped_h), pygame.SRCALPHA)
@@ -238,6 +252,12 @@ class SpritesheetAnimator:
     
     def get_frame(self, index):
         return self._extract_frame(index % self.frame_count)
+    
+    def get_size(self, index=None):
+        if index is None:
+            index = 0
+        frame = self.get_frame(index)
+        return frame.get_size() if frame else (0, 0)
     
     def update(self, dt):
         self.frame_timer += dt
